@@ -41,37 +41,37 @@ router.post('/', async (req, res) => {
     console.log('Login attempt for email:', email);
 
     // Check if user exists
-    let user = await User.findOne({ email });
-    if (!user) {
+      let user = await User.findOne({ email });
+      if (!user) {
       console.log('Login failed: User not found');
       return res.status(400).json({ error: 'Invalid credentials' });
-    }
+      }
 
     // Validate password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
       console.log('Login failed: Invalid password');
       return res.status(400).json({ error: 'Invalid credentials' });
-    }
+      }
 
     // Create JWT token
-    const payload = {
-      user: {
+      const payload = {
+        user: {
         id: user.id
       }
-    };
+      };
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
+      jwt.sign(
+        payload,
+        process.env.JWT_SECRET,
       { expiresIn: '5h' },
-      (err, token) => {
-        if (err) throw err;
+        (err, token) => {
+          if (err) throw err;
         console.log('Login successful for user:', email);
-        res.json({ token });
-      }
-    );
-  } catch (err) {
+          res.json({ token });
+        }
+      );
+    } catch (err) {
     console.error('Error in POST /api/auth:', err.message);
     res.status(500).json({ error: 'Server Error' });
   }
@@ -122,8 +122,8 @@ router.post('/register', async (req, res) => {
         if (err) throw err;
         console.log('Token generated for new user:', email);
         res.json({ token });
-      }
-    );
+  }
+);
   } catch (err) {
     console.error('Error in POST /api/auth/register:', err.message);
     res.status(500).json({ error: 'Server Error' });

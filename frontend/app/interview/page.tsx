@@ -198,9 +198,17 @@ export default function InterviewPage() {
         console.log('Interview API response status:', response.status);
         
         if (!response.ok) {
-          const errorData = await response.json();
-          console.error('Interview API error:', errorData);
-          throw new Error(errorData.error || 'Failed to start interview');
+          let errorMessage = 'Failed to start interview';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.error || errorData.msg || errorMessage;
+          } catch (e) {
+            // If response is not JSON, get the text
+            const text = await response.text();
+            console.error('Non-JSON error response:', text);
+            errorMessage = text || errorMessage;
+          }
+          throw new Error(errorMessage);
         }
 
         const data = await response.json();

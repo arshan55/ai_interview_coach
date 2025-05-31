@@ -156,9 +156,9 @@ router.post(
 router.post('/:interview_id/answer', auth, async (req, res) => {
   try {
     const interview = await Interview.findById(req.params.interview_id);
-    if (!interview) {
-      return res.status(404).json({ msg: 'Interview not found' });
-    }
+      if (!interview) {
+        return res.status(404).json({ msg: 'Interview not found' });
+      }
 
     // Check if user owns the interview
     if (interview.user.toString() !== req.user.id) {
@@ -168,8 +168,8 @@ router.post('/:interview_id/answer', auth, async (req, res) => {
     const { questionIndex, answerText, codeAnswer, programmingLanguage, videoAnswer, audioAnswer } = req.body;
 
     if (questionIndex === undefined || questionIndex >= interview.questions.length) {
-      return res.status(400).json({ msg: 'Invalid question index' });
-    }
+         return res.status(400).json({ msg: 'Invalid question index' });
+      }
 
     const question = interview.questions[questionIndex];
     const isCodingQuestion = question.questionText.startsWith('[CODING_PROBLEM]');
@@ -349,10 +349,10 @@ Overall Feedback: [your feedback]`;
 
         // Create and add the new question to the interview
         const newQuestion = {
-          questionText: nextQuestionText,
-          answerText: null,
-          feedback: null,
-          score: null,
+              questionText: nextQuestionText,
+              answerText: null,
+              feedback: null,
+              score: null,
           codeAnswer: null,
           programmingLanguage: null,
           codeFeedback: null,
@@ -385,9 +385,9 @@ Overall Feedback: [your feedback]`;
     }
 
     // Always return the updated interview object
-    res.json(interview);
+      res.json(interview);
 
-  } catch (err) {
+    } catch (err) {
     console.error('Error in /:interview_id/answer:', err);
     // Specific error handling for AI overload during answer submission
     if (err.message.includes('AI model remains overloaded') || (err.status === 503)) {

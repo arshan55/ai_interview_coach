@@ -10,7 +10,12 @@ const app = express();
 
 // Init Middleware
 app.use(express.json({ extended: false, limit: '50mb' }));
-app.use(cors());
+app.use(cors({
+  origin: ['https://ai-interview-coach.vercel.app', 'http://localhost:3000'],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 
 app.get('/', (req, res) => res.send('API Running'));
 

@@ -64,7 +64,7 @@ const InterviewSchema = new mongoose.Schema({
   date: {
     type: Date,
     default: Date.now
-  },
+    },
   overallFeedback: {
     type: String,
     default: null
