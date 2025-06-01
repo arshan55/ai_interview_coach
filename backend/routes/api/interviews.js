@@ -264,34 +264,56 @@ Areas for Improvement: [specific areas to improve]`;
 
     // Generate feedback using Gemini AI for text answers with retry
     if (!videoAnswer && !audioAnswer && !isCodingQuestion) {
-       const prompt = `You are an expert interviewer. Please evaluate this answer and provide feedback and a score out of 10. Focus on clarity, technical accuracy, and communication skills.\n\nQuestion: ${question.questionText}\nAnswer: ${answerText}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response as:\nFeedback: [your feedback]\nScore: [score out of 10]\nAreas for Improvement: [specific areas to improve]`;
+       const prompt = `You are an expert interviewer. Please evaluate this answer and provide feedback and a score out of 10. Focus on clarity, technical accuracy, and communication skills.\n\nQuestion: ${question.questionText}\nAnswer: ${answerText}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response EXACTLY as follows:\nFeedback: [your feedback]\nScore: [score out of 10]\nAreas for Improvement: [specific areas to improve]`;
 
        const result = await retryGenerateContent(prompt); // Use retry helper
        const response = await result.response;
        const text = response.text();
 
-       // Parse the response to extract feedback and score
-       const feedbackMatch = text.match(/Feedback: (.*?)(?=Score:|$)/s);
-       const scoreMatch = text.match(/Score: (\d+)/);
+       console.log('Raw AI response for feedback:', text);
 
-       question.feedback = feedbackMatch ? feedbackMatch[1].trim() : 'No feedback provided';
-       question.score = scoreMatch ? parseInt(scoreMatch[1]) : null;
+       // Parse the response to extract feedback and score with more robust regex
+       const feedbackMatch = text.match(/Feedback:\s*(.*?)(?=\nScore:|$)/s);
+       const scoreMatch = text.match(/Score:\s*(\d+)/);
+
+       if (feedbackMatch && scoreMatch) {
+         question.feedback = feedbackMatch[1].trim();
+         question.score = parseInt(scoreMatch[1]);
+       } else {
+         console.error('Failed to parse AI response:', text);
+         question.feedback = 'Failed to generate feedback. Please try again.';
+         question.score = null;
+       }
     }
 
      // Handle coding question feedback generation with retry
     if (isCodingQuestion && (question.codeAnswer || question.answerText)) { // Ensure answer exists before generating code feedback
-       const prompt = `You are an expert programmer. Please evaluate this code answer and provide feedback and a score out of 10. Focus on code quality, efficiency, and best practices.\n\nQuestion: ${question.questionText}\nProgramming Language: ${programmingLanguage}\nCode Answer: ${codeAnswer}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response as:\nFeedback: [your feedback]\nScore: [score out of 10]\nAreas for Improvement: [specific areas to improve]`;
+       const prompt = `You are an expert programmer. Please evaluate this code answer and provide feedback and a score out of 10. Focus on code quality, efficiency, and best practices.\n\nQuestion: ${question.questionText}\nProgramming Language: ${programmingLanguage}\nCode Answer: ${codeAnswer}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response EXACTLY as follows:\nFeedback: [your feedback]\nScore: [score out of 10]\nCode Feedback: [specific feedback about the code]\nCode Score: [score out of 10 for the code]`;
 
        const result = await retryGenerateContent(prompt); // Use retry helper
        const response = await result.response;
        const text = response.text();
 
-       // Parse the response to extract feedback and score
-       const feedbackMatch = text.match(/Feedback: (.*?)(?=Score:|$)/s);
-       const scoreMatch = text.match(/Score: (\d+)/);
+       console.log('Raw AI response for code feedback:', text);
 
-       question.codeFeedback = feedbackMatch ? feedbackMatch[1].trim() : 'No feedback provided';
-       question.codeScore = scoreMatch ? parseInt(scoreMatch[1]) : null;
+       // Parse the response to extract feedback and scores with more robust regex
+       const feedbackMatch = text.match(/Feedback:\s*(.*?)(?=\nScore:|$)/s);
+       const scoreMatch = text.match(/Score:\s*(\d+)/);
+       const codeFeedbackMatch = text.match(/Code Feedback:\s*(.*?)(?=\nCode Score:|$)/s);
+       const codeScoreMatch = text.match(/Code Score:\s*(\d+)/);
+
+       if (feedbackMatch && scoreMatch && codeFeedbackMatch && codeScoreMatch) {
+         question.feedback = feedbackMatch[1].trim();
+         question.score = parseInt(scoreMatch[1]);
+         question.codeFeedback = codeFeedbackMatch[1].trim();
+         question.codeScore = parseInt(codeScoreMatch[1]);
+       } else {
+         console.error('Failed to parse AI response for code feedback:', text);
+         question.feedback = 'Failed to generate feedback. Please try again.';
+         question.score = null;
+         question.codeFeedback = 'Failed to generate code feedback. Please try again.';
+         question.codeScore = null;
+       }
     }
 
     // If this is the last question and all questions are answered, calculate overall score
