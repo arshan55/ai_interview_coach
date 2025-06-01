@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { motion, AnimatePresence } from 'framer-motion';
 
 interface Question {
   questionText: string;
@@ -22,6 +23,20 @@ interface Interview {
   overallFeedback?: string;
   overallScore?: number;
 }
+
+const fadeIn = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  exit: { opacity: 0, y: -20 }
+};
+
+const staggerContainer = {
+  animate: {
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
 
 export default function InterviewDetailsPage() {
   const [interview, setInterview] = useState<Interview | null>(null);
@@ -82,127 +97,235 @@ export default function InterviewDetailsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white">
-        <p className="text-xl">Loading interview details...</p>
-      </div>
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white"
+      >
+        <motion.div
+          animate={{ 
+            scale: [1, 1.2, 1],
+            rotate: [0, 5, -5, 0]
+          }}
+          transition={{ 
+            duration: 2,
+            repeat: Infinity,
+            ease: "easeInOut"
+          }}
+        >
+          <p className="text-xl">Loading interview details...</p>
+        </motion.div>
+      </motion.div>
     );
   }
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white">
-        <p className="text-red-500 text-xl">Error: {error}</p>
-        <button
-          onClick={() => router.push('/profile')}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white"
+      >
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.3 }}
         >
-          Back to Profile
-        </button>
-      </div>
+          <p className="text-red-500 text-xl mb-4">Error: {error}</p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => router.push('/profile')}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          >
+            Back to Profile
+          </motion.button>
+        </motion.div>
+      </motion.div>
     );
   }
 
   if (!interview) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white">
-        <p className="text-yellow-500 text-xl">Interview not found.</p>
-        <button
-          onClick={() => router.push('/profile')}
-          className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+      <motion.div 
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white"
+      >
+        <motion.div
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ duration: 0.3 }}
         >
-          Back to Profile
-        </button>
-      </div>
+          <p className="text-yellow-500 text-xl mb-4">Interview not found.</p>
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            onClick={() => router.push('/profile')}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+          >
+            Back to Profile
+          </motion.button>
+        </motion.div>
+      </motion.div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white py-12 px-4 sm:px-6 lg:px-8">
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="min-h-screen bg-gray-900 text-white py-12 px-4 sm:px-6 lg:px-8"
+    >
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+        <motion.div 
+          variants={fadeIn}
+          initial="initial"
+          animate="animate"
+          className="flex justify-between items-center mb-8"
+        >
           <h1 className="text-3xl font-bold">
             {interview.role.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} Interview
             {interview.programmingLanguage && ` - ${interview.programmingLanguage}`}
           </h1>
-          <button
+          <motion.button
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
             onClick={() => router.push('/profile')}
-            className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600"
+            className="px-4 py-2 bg-gray-700 text-white rounded hover:bg-gray-600 transition-colors"
           >
             Back to Profile
-          </button>
-        </div>
+          </motion.button>
+        </motion.div>
 
-        <div className="bg-gray-800 p-6 rounded-lg shadow-xl mb-8">
+        <motion.div 
+          variants={fadeIn}
+          initial="initial"
+          animate="animate"
+          className="bg-gray-800 p-6 rounded-lg shadow-xl mb-8 hover:shadow-2xl transition-shadow"
+        >
           <p className="text-gray-400 mb-2">Date: {formatDateTime(interview.date)}</p>
           {interview.overallScore && (
-            <p className="text-xl font-semibold mb-2">
+            <motion.p 
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.2 }}
+              className="text-xl font-semibold mb-2"
+            >
               Overall Score: {interview.overallScore.toFixed(1)}/10
-            </p>
+            </motion.p>
           )}
           {interview.overallFeedback && (
-            <div className="mt-4">
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="mt-4"
+            >
               <h2 className="text-xl font-semibold mb-2">Overall Feedback</h2>
               <p className="text-gray-300 whitespace-pre-wrap">{interview.overallFeedback}</p>
-            </div>
+            </motion.div>
           )}
-        </div>
+        </motion.div>
 
-        <div className="space-y-8">
+        <motion.div 
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="space-y-8"
+        >
           {interview.questions.map((question, index) => (
-            <div key={index} className="bg-gray-800 p-6 rounded-lg shadow-xl">
+            <motion.div
+              key={index}
+              variants={fadeIn}
+              className="bg-gray-800 p-6 rounded-lg shadow-xl hover:shadow-2xl transition-all duration-300"
+            >
               <h2 className="text-xl font-semibold mb-4">Question {index + 1}</h2>
               <div className="prose prose-invert max-w-none">
                 <p className="mb-4">{question.questionText}</p>
               </div>
 
-              {question.answerText && (
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold mb-2">Your Answer</h3>
-                  <p className="text-gray-300 whitespace-pre-wrap">{question.answerText}</p>
-                </div>
-              )}
+              <AnimatePresence>
+                {question.answerText && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-4"
+                  >
+                    <h3 className="text-lg font-semibold mb-2">Your Answer</h3>
+                    <p className="text-gray-300 whitespace-pre-wrap">{question.answerText}</p>
+                  </motion.div>
+                )}
 
-              {question.codeAnswer && (
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold mb-2">Your Code</h3>
-                  <pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto">
-                    <code>{question.codeAnswer}</code>
-                  </pre>
-                </div>
-              )}
+                {question.codeAnswer && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-4"
+                  >
+                    <h3 className="text-lg font-semibold mb-2">Your Code</h3>
+                    <pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto">
+                      <code>{question.codeAnswer}</code>
+                    </pre>
+                  </motion.div>
+                )}
 
-              {question.feedback && (
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold mb-2">Feedback</h3>
-                  <p className="text-gray-300 whitespace-pre-wrap">{question.feedback}</p>
-                </div>
-              )}
+                {question.feedback && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-4"
+                  >
+                    <h3 className="text-lg font-semibold mb-2">Feedback</h3>
+                    <p className="text-gray-300 whitespace-pre-wrap">{question.feedback}</p>
+                  </motion.div>
+                )}
 
-              {question.codeFeedback && (
-                <div className="mt-4">
-                  <h3 className="text-lg font-semibold mb-2">Code Feedback</h3>
-                  <p className="text-gray-300 whitespace-pre-wrap">{question.codeFeedback}</p>
-                </div>
-              )}
+                {question.codeFeedback && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-4"
+                  >
+                    <h3 className="text-lg font-semibold mb-2">Code Feedback</h3>
+                    <p className="text-gray-300 whitespace-pre-wrap">{question.codeFeedback}</p>
+                  </motion.div>
+                )}
+              </AnimatePresence>
 
-              <div className="mt-4 flex items-center space-x-4">
+              <motion.div 
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 }}
+                className="mt-4 flex items-center space-x-4"
+              >
                 {question.score !== null && (
-                  <div className="bg-gray-700 px-4 py-2 rounded">
+                  <motion.div 
+                    whileHover={{ scale: 1.05 }}
+                    className="bg-gray-700 px-4 py-2 rounded"
+                  >
                     <span className="font-semibold">Score: </span>
                     <span>{question.score.toFixed(1)}/10</span>
-                  </div>
+                  </motion.div>
                 )}
                 {question.codeScore !== null && (
-                  <div className="bg-gray-700 px-4 py-2 rounded">
+                  <motion.div 
+                    whileHover={{ scale: 1.05 }}
+                    className="bg-gray-700 px-4 py-2 rounded"
+                  >
                     <span className="font-semibold">Code Score: </span>
                     <span>{question.codeScore.toFixed(1)}/10</span>
-                  </div>
+                  </motion.div>
                 )}
-              </div>
-            </div>
+              </motion.div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </div>
-    </div>
+    </motion.div>
   );
 } 
