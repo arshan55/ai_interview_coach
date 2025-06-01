@@ -64,7 +64,7 @@ router.post('/', async (req, res) => {
       jwt.sign(
         payload,
         process.env.JWT_SECRET,
-      { expiresIn: '5h' },
+      { expiresIn: '800d' },
         (err, token) => {
           if (err) throw err;
         console.log('Login successful for user:', email);
@@ -117,7 +117,7 @@ router.post('/register', async (req, res) => {
     jwt.sign(
       payload,
       process.env.JWT_SECRET,
-      { expiresIn: '5h' },
+      { expiresIn: '800d' },
       (err, token) => {
         if (err) throw err;
         console.log('Token generated for new user:', email);
