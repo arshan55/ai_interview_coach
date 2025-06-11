@@ -47,7 +47,13 @@ const InterviewSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
-    required: true
+    required: true,
+    validate: {
+      validator: function(v) {
+        return mongoose.Types.ObjectId.isValid(v);
+      },
+      message: props => `${props.value} is not a valid ObjectId!`
+    }
   },
   role: {
     type: String,
@@ -73,6 +79,14 @@ const InterviewSchema = new mongoose.Schema({
     type: Number,
     default: null
   }
+});
+
+// Add pre-save middleware to validate user reference
+InterviewSchema.pre('save', function(next) {
+  if (!mongoose.Types.ObjectId.isValid(this.user)) {
+    next(new Error('Invalid user reference'));
+  }
+  next();
 });
 
 module.exports = mongoose.model('Interview', InterviewSchema);

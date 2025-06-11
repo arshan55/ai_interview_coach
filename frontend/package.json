@@ -14,7 +14,11 @@
     "next": "14.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-hook-speech-to-text": "^0.8.0"
+    "react-hook-speech-to-text": "^0.8.0",
+    "react-markdown": "^10.1.0",
+    "react-particles": "^2.12.2",
+    "react-tsparticles": "^2.12.2",
+    "tsparticles-slim": "^2.12.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.19",

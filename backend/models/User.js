@@ -19,8 +19,12 @@ const UserSchema = new mongoose.Schema({
     required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters long']
   },
-  avatar: {
+  // avatar: {
+  //   type: String,
+  // },
+  profilePicture: {
     type: String,
+    required: false // Profile picture is optional
   },
   interviews: [{
     type: mongoose.Schema.Types.ObjectId,
@@ -42,12 +46,12 @@ UserSchema.post('save', function(doc) {
   console.log('User saved successfully:', doc.email);
 });
 
-UserSchema.post('findOne', function(doc) {
-  if (doc) {
-    console.log('User found:', doc.email);
-  } else {
-    console.log('User not found');
-  }
-});
+// UserSchema.post('findOne', function(doc) {
+//   if (doc) {
+//     console.log('User found:', doc.email);
+//   } else {
+//     console.log('User not found');
+//   }
+// });
 
 module.exports = mongoose.model('User', UserSchema); 

@@ -22,8 +22,15 @@ const connectDB = async () => {
       console.log('Mongoose disconnected from MongoDB');
     });
 
-    // Log all database operations
-    mongoose.set('debug', true);
+    // Only log operations in development
+    if (process.env.NODE_ENV === 'development') {
+      mongoose.set('debug', (collectionName, method, query, doc) => {
+        // Don't log findOne operations to reduce noise
+        if (method !== 'findOne') {
+          console.log(`${collectionName}.${method}`, query);
+        }
+      });
+    }
 
   } catch (err) {
     console.error('Error connecting to MongoDB:', err.message);

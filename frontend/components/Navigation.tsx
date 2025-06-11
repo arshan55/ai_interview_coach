@@ -17,7 +17,9 @@ const Navigation = () => {
     // Listen for changes in localStorage (e.g., login/logout)
     const handleStorageChange = () => {
       const updatedToken = localStorage.getItem('token');
+      console.log('Storage change detected. Token:', updatedToken);
       setIsLoggedIn(!!updatedToken);
+      console.log('isLoggedIn after storage change:', !!updatedToken);
     };
 
     window.addEventListener('storage', handleStorageChange);
@@ -26,7 +28,7 @@ const Navigation = () => {
     return () => {
       window.removeEventListener('storage', handleStorageChange);
     };
-  }, []);
+  }, [pathname]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -35,21 +37,24 @@ const Navigation = () => {
     router.push('/login');
   };
 
-  // Don't render on interview page
-  if (pathname.startsWith('/interview')) {
+  // Don't render on interview page - Adjusted condition
+  if (pathname.startsWith('/interview/')) { // Only hide on actual interview detail pages
     return null;
   }
 
   return (
     <nav className="bg-gray-800 p-4 text-white">
       <div className="container mx-auto flex justify-between items-center">
-        <Link href="/profile" className="text-2xl font-bold">
+        <Link href="/" className="text-2xl font-bold">
             AI Interview Coach
         </Link>
         <div>
           {isLoggedIn ? (
-            // Show Profile and Logout when logged in
+            // Show Home, Profile, and Logout when logged in
             <div className="flex space-x-4">
+              <Link href="/" className="hover:underline">
+                  Home
+              </Link>
               <Link href="/profile" className="hover:underline">
                   Profile
               </Link>

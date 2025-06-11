@@ -63,7 +63,13 @@ const RegisterPage = () => {
       }, 2000); // Redirect after 2 seconds
     } catch (err: any) {
       console.error('Registration error:', err);
-      setError(err.message);
+      console.log('Full error object:', err);
+      // Check if the error message indicates that the user already exists
+      if (err.message.toLowerCase().includes('already exists') || err.message.toLowerCase().includes('duplicate') || err.message.toLowerCase().includes('taken')) {
+        setError('User already exists.');
+      } else {
+        setError(err.message || 'Registration failed');
+      }
     } finally {
       setLoading(false);
     }

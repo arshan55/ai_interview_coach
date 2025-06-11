@@ -4,92 +4,247 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 
+interface Interview {
+  _id: string;
+  date: string;
+  role?: string;
+  programmingLanguage?: string;
+  overallScore?: number;
+  overallFeedback?: string;
+}
+
+interface InterviewStats {
+  totalInterviews: number;
+  averageScore: number;
+  bestScore: number;
+  recentInterviews: Interview[];
+  totalQuestions: number;
+  lastInterviewDate?: string;
+}
+
 export default function Home() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [interviews, setInterviews] = useState<Interview[]>([]);
+  const [interviewsLoading, setInterviewsLoading] = useState(false);
+  const [interviewsError, setInterviewsError] = useState<string | null>(null);
+  const [stats, setStats] = useState<InterviewStats | null>(null);
   const router = useRouter();
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     setIsAuthenticated(!!token);
-  }, []);
+
+    // Fetch interviews and stats if authenticated
+    if (token) {
+      const fetchData = async () => {
+        setInterviewsLoading(true);
+        setInterviewsError(null);
+        try {
+          // Fetch interviews
+          const interviewsResponse = await fetch('/api/interviews/user', {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          });
+
+          if (!interviewsResponse.ok) {
+            const errorData = await interviewsResponse.json();
+            throw new Error(errorData.error || errorData.msg || 'Failed to fetch interviews');
+          }
+
+          const interviewsData = await interviewsResponse.json();
+          setInterviews(interviewsData);
+
+          // Calculate stats
+          const statsData: InterviewStats = {
+            totalInterviews: interviewsData.length,
+            averageScore: interviewsData.length > 0 
+              ? interviewsData.reduce((sum: number, interview: Interview) => sum + (interview.overallScore || 0), 0) / interviewsData.length 
+              : 0,
+            bestScore: interviewsData.length > 0 
+              ? Math.max(...interviewsData.map((interview: Interview) => interview.overallScore || 0))
+              : 0,
+            recentInterviews: interviewsData.slice(0, 3),
+            totalQuestions: interviewsData.length,
+            lastInterviewDate: interviewsData.length > 0 ? interviewsData[interviewsData.length - 1].date : undefined
+          };
+          setStats(statsData);
+
+        } catch (err: any) {
+          console.error('Error fetching data:', err);
+          setInterviewsError(err.message);
+        } finally {
+          setInterviewsLoading(false);
+        }
+      };
+
+      fetchData();
+    }
+  }, [router]);
+
+  const formatDateTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const deleteInterview = async (interviewId: string) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        router.push('/login');
+        return;
+      }
+
+      const response = await fetch(`/api/interviews/${interviewId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete interview');
+      }
+
+      // Remove the deleted interview from the state
+      setInterviews(prevInterviews => prevInterviews.filter(interview => interview._id !== interviewId));
+    } catch (err) {
+      console.error('Error deleting interview:', err);
+      setInterviewsError(err instanceof Error ? err.message : 'Failed to delete interview');
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-900">
+    <div className="min-h-screen">
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <div className="text-center">
-          <h1 className="text-4xl tracking-tight font-extrabold text-white sm:text-5xl md:text-6xl">
-            <span className="block">Master Your Interview Skills</span>
-            <span className="block text-blue-500">with AI-Powered Practice</span>
-          </h1>
-          <p className="mt-3 max-w-md mx-auto text-base text-gray-300 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
-            Get personalized feedback and improve your interview performance with our AI-powered interview coach.
-          </p>
-          <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
-            {isAuthenticated ? (
-              <Link
-                href="/interview/role-select"
-                className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 md:py-4 md:text-lg md:px-10"
-              >
-                Start Interview
-              </Link>
-            ) : (
-              <Link
-                href="/register"
-                className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 md:py-4 md:text-lg md:px-10"
-              >
-                Get Started
-              </Link>
-            )}
+        <div className="space-y-8">
+          {/* Hero Section */}
+          <div className="text-center">
+            <h1 className="text-4xl tracking-tight font-extrabold text-white sm:text-5xl md:text-6xl">
+              <span className="block">Master Your Interview Skills</span>
+              <span className="block text-blue-500">with AI-Powered Practice</span>
+            </h1>
+            <p className="mt-3 max-w-md mx-auto text-base text-slate-300 sm:text-lg md:mt-5 md:text-xl md:max-w-3xl">
+              Get personalized feedback and improve your interview performance with our AI-powered interview coach.
+            </p>
+            <div className="mt-5 max-w-md mx-auto sm:flex sm:justify-center md:mt-8">
+              {isAuthenticated ? (
+                <Link
+                  href="/interview/role-select"
+                  className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 md:py-4 md:text-lg md:px-10"
+                >
+                  Start Interview
+                </Link>
+              ) : (
+                <Link
+                  href="/register"
+                  className="w-full flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 md:py-4 md:text-lg md:px-10"
+                >
+                  Get Started
+                </Link>
+              )}
+            </div>
           </div>
-        </div>
 
-        <div className="mt-16">
-          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="pt-6">
-              <div className="flow-root bg-gray-800 rounded-lg px-6 pb-8">
-                <div className="-mt-6">
-                  <div className="inline-flex items-center justify-center p-3 bg-blue-500 rounded-md shadow-lg">
-                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                  </div>
-                  <h3 className="mt-8 text-lg font-medium text-white tracking-tight">Real-time Feedback</h3>
-                  <p className="mt-5 text-base text-gray-300">
-                    Get instant feedback on your answers and learn how to improve your responses.
-                  </p>
+          {/* Stats Section for Authenticated Users */}
+          {isAuthenticated && stats && (
+            <div className="mt-16">
+              <h2 className="text-3xl font-bold text-white mb-8">Your Interview Stats</h2>
+              <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
+                <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-lg border border-slate-700">
+                  <h3 className="text-xl font-semibold text-white mb-2">Total Interviews</h3>
+                  <p className="text-3xl font-bold text-blue-500">{stats.totalInterviews}</p>
+                </div>
+                <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-lg border border-slate-700">
+                  <h3 className="text-xl font-semibold text-white mb-2">Average Score</h3>
+                  <p className="text-3xl font-bold text-blue-500">{stats.averageScore.toFixed(1)}/10</p>
+                </div>
+                <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-lg border border-slate-700">
+                  <h3 className="text-xl font-semibold text-white mb-2">Questions Answered</h3>
+                  <p className="text-3xl font-bold text-blue-500">{stats.totalQuestions}</p>
                 </div>
               </div>
             </div>
+          )}
 
-            <div className="pt-6">
-              <div className="flow-root bg-gray-800 rounded-lg px-6 pb-8">
-                <div className="-mt-6">
-                  <div className="inline-flex items-center justify-center p-3 bg-blue-500 rounded-md shadow-lg">
-                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                    </svg>
-                  </div>
-                  <h3 className="mt-8 text-lg font-medium text-white tracking-tight">Personalized Questions</h3>
-                  <p className="mt-5 text-base text-gray-300">
-                    Practice with questions tailored to your field and experience level.
-                  </p>
-                </div>
+          {/* Interviews Section */}
+          {isAuthenticated && (
+            <div className="mt-16">
+              <div className="max-w-4xl mx-auto bg-gray-800 p-6 rounded-lg shadow-xl">
+                <h2 className="text-2xl font-semibold text-white mb-4">Your Interviews</h2>
+
+                {interviewsLoading ? (
+                  <p className="text-gray-300">Loading your interviews...</p>
+                ) : interviewsError ? (
+                  <p className="text-red-500">Error loading interviews: {interviewsError}</p>
+                ) : interviews.length > 0 ? (
+                  <ul className="space-y-4">
+                    {interviews.map((interview: Interview) => (
+                      <li key={interview._id} className="bg-gray-700 p-4 rounded-md flex justify-between items-center">
+                        <div>
+                          <p className="text-lg font-semibold text-white">{interview.role?.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
+                          {interview.programmingLanguage && (
+                            <p className="text-sm text-gray-400">Language: {interview.programmingLanguage}</p>
+                          )}
+                          <p className="text-sm text-gray-400">{formatDateTime(interview.date)}</p>
+                        </div>
+                        <div className="flex items-center space-x-3">
+                          <Link
+                            href={`/interview/${interview._id}`}
+                            className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                          >
+                            View Details
+                          </Link>
+                          <button
+                            onClick={() => deleteInterview(interview._id)}
+                            className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-gray-300">You haven't completed any interviews yet. Start one above!</p>
+                )}
               </div>
             </div>
+          )}
 
-            <div className="pt-6">
-              <div className="flow-root bg-gray-800 rounded-lg px-6 pb-8">
-                <div className="-mt-6">
-                  <div className="inline-flex items-center justify-center p-3 bg-blue-500 rounded-md shadow-lg">
-                    <svg className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                    </svg>
-                  </div>
-                  <h3 className="mt-8 text-lg font-medium text-white tracking-tight">Track Progress</h3>
-                  <p className="mt-5 text-base text-gray-300">
-                    Monitor your improvement over time with detailed performance analytics.
-                  </p>
-                </div>
+          {/* Features Section */}
+          <div className="mt-16">
+            <h2 className="text-3xl font-bold text-white mb-8">Why Choose Our AI Interview Coach?</h2>
+            <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-lg border border-slate-700">
+                <h3 className="text-xl font-semibold text-white mb-2">Practice with Realistic Questions</h3>
+                <p className="text-base text-slate-300">
+                  Our AI-powered interview coach provides you with realistic interview questions tailored to your field and experience level.
+                </p>
+              </div>
+              <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-lg border border-slate-700">
+                <h3 className="text-xl font-semibold text-white mb-2">Get Personalized Feedback</h3>
+                <p className="text-base text-slate-300">
+                  Receive personalized feedback on your responses to help you improve your interview performance.
+                </p>
+              </div>
+              <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-lg border border-slate-700">
+                <h3 className="text-xl font-semibold text-white mb-2">Track Your Progress</h3>
+                <p className="text-base text-slate-300">
+                  Monitor your improvement over time with detailed performance analytics.
+                </p>
+              </div>
+              <div className="bg-slate-800/50 backdrop-blur-sm p-6 rounded-lg border border-slate-700">
+                <h3 className="text-xl font-semibold text-white mb-2">Improve Your Skills</h3>
+                <p className="text-base text-slate-300">
+                  Focus on improving your skills and increasing your confidence with our AI-powered interview coach.
+                </p>
               </div>
             </div>
           </div>

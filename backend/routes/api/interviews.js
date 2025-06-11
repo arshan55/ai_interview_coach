@@ -60,7 +60,69 @@ const generatePrompt = (interview) => {
 
   } else {
     // Initial prompt for the first question
-    prompt += "Start the interview by asking the first question for the selected role. The interview should consist of exactly 5 questions in total. If the first question is a coding problem, start its text with [CODING_PROBLEM]. Respond using the exact format: Feedback: [Initial feedback or greeting]\nScore: [N/A]\nNext Question: [Your first question here]";
+    prompt += `Start the interview by asking the first question for the selected role. The interview should consist of exactly 5 questions in total. 
+    For the first question, choose one of these approaches based on the role:
+    - For technical roles (software-engineer, frontend-developer, backend-developer, data-scientist, devops-engineer): 
+      * Choose ONE of these categories randomly:
+        - Data Structures & Algorithms:
+          * Array/List manipulation (e.g., finding duplicates, merging sorted arrays)
+          * Tree/Binary Search Tree operations
+          * Graph algorithms (e.g., BFS, DFS, shortest path)
+          * Dynamic programming problems
+          * Sorting and searching algorithms
+        - System Design:
+          * API design and RESTful principles
+          * Database schema design
+          * Caching strategies
+          * Microservices architecture
+          * Scalability considerations
+        - Problem Solving:
+          * Debugging scenarios
+          * Performance optimization
+          * Memory management
+          * Concurrency issues
+          * Error handling
+        - Language-specific Features:
+          * Async/await patterns
+          * Design patterns
+          * Memory management
+          * Type systems
+          * Testing strategies
+      * If it's a coding problem, start its text with [CODING_PROBLEM]
+      * Make sure to vary the difficulty and topic each time
+      * Avoid common beginner questions like string reversal or palindrome checks
+    
+    - For product-manager:
+      * Choose ONE of these categories randomly:
+        - Product Strategy:
+          * Market analysis and competitive positioning
+          * Feature prioritization frameworks
+          * Product roadmap planning
+          * Go-to-market strategies
+          * Product lifecycle management
+        - User Experience:
+          * User research methodologies
+          * Usability testing
+          * User journey mapping
+          * A/B testing strategies
+          * User feedback analysis
+        - Technical Product:
+          * API design and documentation
+          * Technical requirements gathering
+          * System integration planning
+          * Technical debt management
+          * Performance metrics
+        - Business Impact:
+          * Key metrics and KPIs
+          * ROI analysis
+          * Cost-benefit analysis
+          * Market sizing
+          * Revenue models
+      * Make sure to vary the scenario and context each time
+    
+    Make sure the first question is relevant to the role and demonstrates the candidate's expertise.
+    Use wide variety of first questions to keep interviews fresh every time.
+    Respond using the exact format: Feedback: [Initial feedback or greeting]\nScore: [N/A]\nNext Question: [Your first question here]`;
   }
 
   return prompt;
@@ -425,6 +487,33 @@ Overall Feedback: [your feedback]`;
 router.use((err, req, res, next) => {
   console.error('Unhandled error in /api/interviews/:interview_id/answer route:', err);
   res.status(500).json({ msg: 'An unexpected server error occurred', details: err.message });
+});
+
+// @route GET api/interviews/user
+// @desc Get all interviews for the authenticated user
+// @access Private
+router.get('/user', auth, async (req, res) => {
+  try {
+    // Log the request details for debugging
+    console.log('GET /api/interviews/user - User ID:', req.user.id);
+    
+    // Validate user ID
+    if (!req.user || !req.user.id) {
+      console.error('Invalid user ID in request');
+      return res.status(401).json({ error: 'User not authenticated' });
+    }
+
+    // Find interviews for the user
+    const interviews = await Interview.find({ user: req.user.id })
+      .select('-questions') // Don't send the questions array to reduce payload size
+      .sort({ date: -1 }); // Sort by date, newest first
+    
+    console.log(`Found ${interviews.length} interviews for user ${req.user.id}`);
+    res.json(interviews);
+  } catch (err) {
+    console.error('Error in GET /api/interviews/user:', err);
+    res.status(500).json({ error: 'Server Error', details: err.message });
+  }
 });
 
 // @route GET api/interviews/:interview_id

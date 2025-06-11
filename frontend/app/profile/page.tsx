@@ -2,87 +2,61 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Navigation from '@/components/Navigation';
+import Link from 'next/link';
 
 interface User {
   _id: string;
   name: string;
   email: string;
   date: string;
-  interviews: Interview[];
 }
-
-interface Interview {
-  _id: string;
-  questions: Question[];
-  date: string;
-  role?: string;
-  programmingLanguage?: string;
-}
-
-interface Question {
-  questionText: string;
-  answerText: string | null;
-  feedback: string | null;
-  score: number | null;
-  codeAnswer?: string | null;
-  programmingLanguage?: string | null;
-  codeFeedback?: string | null;
-  codeScore?: number | null;
-}
-
-// Delete Confirmation Modal Component
-const DeleteModal = ({ isOpen, onClose, onConfirm, interviewRole }: { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  onConfirm: () => void;
-  interviewRole?: string;
-}) => {
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 p-6 rounded-lg shadow-xl max-w-md w-full mx-4">
-        <h3 className="text-xl font-bold text-white mb-4">Delete Interview</h3>
-        <p className="text-gray-300 mb-6">
-          Are you sure you want to delete this {interviewRole ? interviewRole.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') : ''} interview? This action cannot be undone.
-        </p>
-        <div className="flex justify-end space-x-3">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-gray-300 hover:text-white"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Delete
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-};
 
 const ProfilePage = () => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
-  const [interviewToDelete, setInterviewToDelete] = useState<{ id: string; role?: string } | null>(null);
   const router = useRouter();
 
-  // Calculate average score for an interview
-  const calculateAverageScore = (interview: Interview) => {
-    const scores = interview.questions
-      .map(q => q.score !== null ? q.score : 0)
-      .filter(score => score > 0);
-    
-    if (scores.length === 0) return 0;
-    return (scores.reduce((a, b) => a + b, 0) / scores.length).toFixed(1);
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    router.push('/login');
   };
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        const token = localStorage.getItem('token');
+        if (!token) {
+          router.push('/login');
+          return;
+        }
+
+        const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+        const userDataResponse = await fetch(`${backendUrl}/api/auth`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!userDataResponse.ok) {
+          const userDataError = await userDataResponse.json();
+          throw new Error(userDataError.msg || 'Failed to fetch user data');
+        }
+
+        const userData: User = await userDataResponse.json();
+        setUser(userData);
+        setLoading(false);
+      } catch (err: any) {
+        console.error('Error fetching data:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Failed to load profile data';
+        setError(errorMessage);
+        setLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, [router]);
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -95,88 +69,11 @@ const ProfilePage = () => {
     });
   };
 
-  const handleDeleteClick = (interview: Interview) => {
-    setInterviewToDelete({ id: interview._id, role: interview.role });
-    setDeleteModalOpen(true);
-  };
-
-  const handleDeleteConfirm = async () => {
-    if (!interviewToDelete) return;
-
-    try {
-      setDeletingId(interviewToDelete.id);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`/api/interviews/${interviewToDelete.id}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to delete interview');
-      }
-
-      // Update the user state to remove the deleted interview
-      setUser(prev => {
-        if (!prev) return null;
-        return {
-          ...prev,
-          interviews: prev.interviews.filter(i => i._id !== interviewToDelete.id)
-        };
-      });
-    } catch (err) {
-      console.error('Error deleting interview:', err);
-      alert('Failed to delete interview. Please try again.');
-    } finally {
-      setDeletingId(null);
-      setDeleteModalOpen(false);
-      setInterviewToDelete(null);
-    }
-  };
-
-  const handleDeleteCancel = () => {
-    setDeleteModalOpen(false);
-    setInterviewToDelete(null);
-  };
-
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        if (!token) {
-          router.push('/login');
-          return;
-        }
-
-        const response = await fetch('/api/auth', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.msg || 'Failed to fetch user data');
-        }
-
-        const data = await response.json();
-        setUser(data);
-        setLoading(false);
-      } catch (err: any) {
-        console.error('Error fetching user data:', err);
-        setError(err.message);
-        setLoading(false);
-      }
-    };
-
-    fetchUserData();
-  }, [router]);
-
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8">
-        <p className="text-white text-xl">Loading profile...</p>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+        <p className="text-white text-xl mt-4">Loading profile...</p>
       </div>
     );
   }
@@ -184,7 +81,19 @@ const ProfilePage = () => {
   if (error) {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8">
-        <p className="text-red-500 text-xl">Error: {error}</p>
+        <div className="bg-red-800 p-6 rounded-lg w-full max-w-md text-center">
+          <svg className="h-12 w-12 mx-auto text-red-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <h3 className="text-red-300 text-lg font-semibold mb-2">Error</h3>
+          <p className="text-red-300 text-sm mb-4">{error}</p>
+          <button
+            onClick={() => window.location.reload()}
+            className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+          >
+            Try Again
+          </button>
+        </div>
       </div>
     );
   }
@@ -193,78 +102,53 @@ const ProfilePage = () => {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8">
         <p className="text-white text-xl">Please log in to view your profile</p>
+        <button
+          onClick={() => router.push('/login')}
+          className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+        >
+          Login
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-center mb-8">Your Profile</h1>
+    <div className="min-h-screen bg-gray-900 text-white">
+      <div className="max-w-4xl mx-auto px-4 py-12">
+        <div className="bg-gray-800 rounded-lg shadow-xl p-8">
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-white">Your Profile</h1>
+            <button
+              onClick={handleLogout}
+              className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700"
+            >
+              Logout
+            </button>
+          </div>
 
-        {/* User Info */}
-        <div className="bg-gray-800 p-6 rounded-lg shadow-xl mb-8">
-          <h2 className="text-2xl font-semibold mb-4">Welcome, {user.name}!</h2>
-          <p className="text-gray-300 mb-4">Email: {user.email}</p>
+          <div className="space-y-4 mb-8">
+            <div className="flex flex-col items-center">
+              <div className="w-32 h-32 rounded-full bg-gray-700 flex items-center justify-center">
+                <span className="text-3xl font-bold">{user.name.charAt(0).toUpperCase()}</span>
+              </div>
+              <p className="text-xl font-semibold mt-4">{user.name}</p>
+              <p className="text-gray-400 text-sm">{user.email}</p>
+              <p className="text-gray-400 text-sm">Joined: {formatDateTime(user.date)}</p>
+            </div>
 
-          {/* Start New Interview Button */}
-          <button
-            onClick={() => router.push('/interview/role-select')}
-            className="mt-4 px-6 py-3 bg-blue-600 text-white font-bold text-lg rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-          >
-            Start New Interview
-          </button>
+            <div className="mt-8">
+              <button
+                onClick={() => router.push('/interview/role-select')}
+                className="px-6 py-3 bg-green-600 text-white font-bold text-lg rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              >
+                Start New Interview
+              </button>
+            </div>
+          </div>
 
-        </div>
 
-        {/* Past Interviews */}
-        <div className="bg-gray-800 p-6 rounded-lg shadow-xl">
-          <h2 className="text-2xl font-semibold mb-4">Your Past Interviews</h2>
-
-          {user.interviews && user.interviews.length > 0 ? (
-            <ul className="space-y-4">
-              {user.interviews.map(interview => (
-                <li key={interview._id} className="bg-gray-700 p-4 rounded-md flex justify-between items-center">
-                  <div>
-                    <p className="text-lg font-semibold">{interview.role?.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
-                    {interview.programmingLanguage && (
-                      <p className="text-sm text-gray-400">Language: {interview.programmingLanguage}</p>
-                    )}
-                    <p className="text-sm text-gray-400">{formatDateTime(interview.date)}</p>
-                  </div>
-                  <div className="flex items-center space-x-3">
-                     {/* View Details button */}
-                     <button
-                       onClick={() => router.push(`/interview/${interview._id}`)}
-                       className="px-3 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
-                     >
-                        View Details
-                     </button>
-
-                    {/* Delete button */}
-                    <button
-                      onClick={() => handleDeleteClick(interview)}
-                      className="px-3 py-1 bg-red-600 text-white rounded-md hover:bg-red-700 text-sm disabled:opacity-50"
-                      disabled={deletingId === interview._id}
-                    >
-                      {deletingId === interview._id ? 'Deleting...' : 'Delete'}
-                    </button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-gray-400">You haven't completed any interviews yet.</p>
-          )}
         </div>
       </div>
-      {/* Delete Confirmation Modal */}
-      <DeleteModal 
-         isOpen={deleteModalOpen} 
-         onClose={handleDeleteCancel} 
-         onConfirm={handleDeleteConfirm}
-         interviewRole={interviewToDelete?.role}
-      />
     </div>
   );
 };

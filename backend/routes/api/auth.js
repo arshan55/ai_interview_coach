@@ -13,12 +13,7 @@ router.get('/', auth, async (req, res) => {
   try {
     console.log('Fetching user data for ID:', req.user.id);
     const user = await User.findById(req.user.id)
-      .select('-password')
-      .populate({
-        path: 'interviews',
-        select: 'questions role programmingLanguage date',
-        options: { sort: { date: -1 } } // Sort interviews by date, newest first
-      });
+      .select('-password -interviews')
     
     if (!user) {
       console.log('User not found for ID:', req.user.id);
