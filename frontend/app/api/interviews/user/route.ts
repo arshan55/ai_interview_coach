@@ -8,6 +8,9 @@ export async function GET() {
     const headersList = headers();
     const token = headersList.get('authorization');
 
+    console.log('Backend URL:', BACKEND_URL);
+    console.log('Authorization token present:', !!token);
+
     if (!token) {
       return NextResponse.json(
         { error: 'No authorization token provided' },
@@ -15,19 +18,38 @@ export async function GET() {
       );
     }
 
-    const response = await fetch(`${BACKEND_URL}/api/interviews/user`, {
+    const url = `${BACKEND_URL}/api/interviews/user`;
+    console.log('Making request to:', url);
+
+    const response = await fetch(url, {
       headers: {
         'Authorization': token,
         'Content-Type': 'application/json'
       }
     });
 
+    console.log('Response status:', response.status);
+    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+
     if (!response.ok) {
-      const errorData = await response.json().catch(() => null);
-      return NextResponse.json(
-        { error: errorData?.error || 'Failed to fetch interviews' },
-        { status: response.status }
-      );
+      const contentType = response.headers.get('content-type');
+      console.log('Error response content type:', contentType);
+
+      if (contentType && contentType.includes('application/json')) {
+        const errorData = await response.json();
+        console.log('Error data:', errorData);
+        return NextResponse.json(
+          { error: errorData?.error || 'Failed to fetch interviews' },
+          { status: response.status }
+        );
+      } else {
+        const text = await response.text();
+        console.log('Non-JSON error response:', text);
+        return NextResponse.json(
+          { error: 'Failed to fetch interviews. Please try again later.' },
+          { status: response.status }
+        );
+      }
     }
 
     const data = await response.json();

@@ -32,6 +32,7 @@ export default function Home() {
 
   useEffect(() => {
     const token = localStorage.getItem('token');
+    console.log('Token present:', !!token);
     setIsAuthenticated(!!token);
 
     // Fetch interviews and stats if authenticated
@@ -40,6 +41,7 @@ export default function Home() {
         setInterviewsLoading(true);
         setInterviewsError(null);
         try {
+          console.log('Fetching interviews...');
           // Fetch interviews
           const interviewsResponse = await fetch('/api/interviews/user', {
             headers: {
@@ -48,17 +50,23 @@ export default function Home() {
             }
           });
 
+          console.log('Response status:', interviewsResponse.status);
+          console.log('Response headers:', Object.fromEntries(interviewsResponse.headers.entries()));
+
           if (!interviewsResponse.ok) {
             if (interviewsResponse.status === 401) {
-              // Token is invalid or expired
+              console.log('Token expired or invalid');
               localStorage.removeItem('token');
               setIsAuthenticated(false);
               throw new Error('Session expired. Please sign in again.');
             }
             
             const contentType = interviewsResponse.headers.get('content-type');
+            console.log('Error response content type:', contentType);
+
             if (contentType && contentType.includes('application/json')) {
               const errorData = await interviewsResponse.json();
+              console.log('Error data:', errorData);
               throw new Error(errorData.error || errorData.msg || 'Failed to fetch interviews');
             } else {
               const text = await interviewsResponse.text();
@@ -68,6 +76,7 @@ export default function Home() {
           }
 
           const interviewsData = await interviewsResponse.json();
+          console.log('Interviews data:', interviewsData);
           setInterviews(interviewsData);
 
           // Calculate stats
