@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import * as jose from 'jose';
 import { prisma } from '@/lib/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET!;
@@ -34,16 +34,16 @@ export async function POST(request: Request) {
       });
     }
 
-    // Generate JWT token
-    const token = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        role: user.role,
-      },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    // Generate JWT token using jose
+    const secret = new TextEncoder().encode(JWT_SECRET);
+    const token = await new jose.SignJWT({
+      userId: user.id,
+      email: user.email,
+      role: user.role,
+    })
+      .setProtectedHeader({ alg: 'HS256' })
+      .setExpirationTime('7d')
+      .sign(secret);
 
     return NextResponse.json({ token });
   } catch (error: any) {
