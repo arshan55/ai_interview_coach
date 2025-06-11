@@ -43,13 +43,28 @@ export default function Home() {
           // Fetch interviews
           const interviewsResponse = await fetch('/api/interviews/user', {
             headers: {
-              'Authorization': `Bearer ${token}`
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
             }
           });
 
           if (!interviewsResponse.ok) {
-            const errorData = await interviewsResponse.json();
-            throw new Error(errorData.error || errorData.msg || 'Failed to fetch interviews');
+            if (interviewsResponse.status === 401) {
+              // Token is invalid or expired
+              localStorage.removeItem('token');
+              setIsAuthenticated(false);
+              throw new Error('Session expired. Please sign in again.');
+            }
+            
+            const contentType = interviewsResponse.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+              const errorData = await interviewsResponse.json();
+              throw new Error(errorData.error || errorData.msg || 'Failed to fetch interviews');
+            } else {
+              const text = await interviewsResponse.text();
+              console.error('Non-JSON error response:', text);
+              throw new Error('Failed to fetch interviews. Please try again later.');
+            }
           }
 
           const interviewsData = await interviewsResponse.json();
@@ -69,10 +84,11 @@ export default function Home() {
             lastInterviewDate: interviewsData.length > 0 ? interviewsData[interviewsData.length - 1].date : undefined
           };
           setStats(statsData);
-
-        } catch (err: any) {
-          console.error('Error fetching data:', err);
-          setInterviewsError(err.message);
+        } catch (err) {
+          console.error('Error fetching interviews:', err);
+          setInterviewsError(err instanceof Error ? err.message : 'Failed to fetch interviews');
+          setInterviews([]);
+          setStats(null);
         } finally {
           setInterviewsLoading(false);
         }
@@ -80,7 +96,7 @@ export default function Home() {
 
       fetchData();
     }
-  }, [router]);
+  }, [isAuthenticated]);
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
