@@ -4,15 +4,15 @@ import { headers } from 'next/headers';
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
-export async function GET() {
+export async function GET(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
     const headersList = headers();
     const authHeader = headersList.get('authorization');
-
-    console.log('Backend URL:', BACKEND_URL);
-    console.log('Authorization token present:', !!authHeader);
 
     if (!authHeader) {
       return NextResponse.json(
@@ -21,24 +21,17 @@ export async function GET() {
       );
     }
 
-    const url = `${BACKEND_URL}/api/interviews/user`;
-    console.log('Making request to:', url);
-
-    const response = await fetch(url, {
+    const response = await fetch(`${BACKEND_URL}/api/interviews/${params.id}`, {
       headers: {
         'Authorization': authHeader,
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
     });
-
-    console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
       const errorData = await response.json();
-      console.log('Error data:', errorData);
       return NextResponse.json(
-        { error: errorData.detail || 'Failed to fetch user interviews' },
+        { error: errorData.detail || 'Failed to fetch interview' },
         { status: response.status }
       );
     }
@@ -46,7 +39,7 @@ export async function GET() {
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error fetching user interviews:', error);
+    console.error('Error fetching interview:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
