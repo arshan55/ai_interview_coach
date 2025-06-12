@@ -5,6 +5,9 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 const REDIRECT_URI = 'https://ai-coach-frontend.vercel.app/api/auth/google/callback';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
