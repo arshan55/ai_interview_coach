@@ -2,20 +2,21 @@ import { NextResponse } from 'next/server';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL;
-const FRONTEND_URL = process.env.NEXT_PUBLIC_APP_URL;
-const REDIRECT_URI = `${FRONTEND_URL}/api/auth/google/callback`;
+const REDIRECT_URI = 'https://ai-coach-frontend.vercel.app/api/auth/google/callback';
 
 export async function GET(request: Request) {
-  const { searchParams } = new URL(request.url);
-  const code = searchParams.get('code');
-
-  if (!code) {
-    return NextResponse.redirect('/login?error=No code provided');
-  }
-
   try {
-    // Exchange code for tokens
+    const { searchParams } = new URL(request.url);
+    const code = searchParams.get('code');
+
+    if (!code) {
+      return NextResponse.json(
+        { error: 'No authorization code provided' },
+        { status: 400 }
+      );
+    }
+
+    // Exchange the code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
@@ -30,11 +31,15 @@ export async function GET(request: Request) {
       }),
     });
 
-    const tokens = await tokenResponse.json();
-
     if (!tokenResponse.ok) {
-      throw new Error(tokens.error_description || 'Failed to get tokens');
+      console.error('Token exchange failed:', await tokenResponse.text());
+      return NextResponse.json(
+        { error: 'Failed to exchange code for token' },
+        { status: 500 }
+      );
     }
+
+    const tokens = await tokenResponse.json();
 
     // Get user info
     const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
@@ -43,52 +48,33 @@ export async function GET(request: Request) {
       },
     });
 
+    if (!userResponse.ok) {
+      console.error('User info fetch failed:', await userResponse.text());
+      return NextResponse.json(
+        { error: 'Failed to fetch user info' },
+        { status: 500 }
+      );
+    }
+
     const userData = await userResponse.json();
 
-    if (!userResponse.ok) {
-      throw new Error('Failed to get user data');
-    }
-
-    // Create or update user in your database through the backend
-    const headers: HeadersInit = {
-      'Content-Type': 'application/json',
-    };
+    // Create a response with the user data and tokens
+    const response = NextResponse.redirect(new URL('/', request.url));
     
-    if (FRONTEND_URL) {
-      headers['Origin'] = FRONTEND_URL;
-    }
-
-    const response = await fetch(`${BACKEND_URL}/api/auth/google/user`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify({
-        email: userData.email,
-        name: userData.name,
-        picture: userData.picture,
-        googleId: userData.id,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.message || 'Failed to create/update user');
-    }
-
-    // Set auth cookie and redirect to home
-    const redirectResponse = NextResponse.redirect('/');
-    redirectResponse.cookies.set('token', data.token, {
+    // Set the token in a cookie
+    response.cookies.set('token', tokens.access_token, {
       httpOnly: true,
-      secure: true,
+      secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 7 * 24 * 60 * 60, // 7 days
-      path: '/',
-      domain: process.env.NODE_ENV === 'production' ? new URL(FRONTEND_URL!).hostname : undefined,
+      maxAge: 60 * 60 * 24 * 7, // 1 week
     });
 
-    return redirectResponse;
-  } catch (error: any) {
-    console.error('Google auth error:', error);
-    return NextResponse.redirect(`/login?error=${encodeURIComponent(error.message)}`);
+    return response;
+  } catch (error) {
+    console.error('Error in Google callback:', error);
+    return NextResponse.json(
+      { error: 'Internal server error' },
+      { status: 500 }
+    );
   }
 } 
