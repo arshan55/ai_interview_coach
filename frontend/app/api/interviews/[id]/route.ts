@@ -20,9 +20,12 @@ export async function GET(
     const authHeader = headersList.get('authorization');
 
     if (!authHeader) {
-      return NextResponse.json(
-        { error: 'Authorization header is required' },
-        { status: 401 }
+      return new NextResponse(
+        JSON.stringify({ error: 'Authorization header is required' }),
+        { 
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        }
       );
     }
 
@@ -31,23 +34,36 @@ export async function GET(
         'Authorization': authHeader,
         'Content-Type': 'application/json',
       },
+      cache: 'no-store',
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      return NextResponse.json(
-        { error: errorData.detail || 'Failed to fetch interview' },
-        { status: response.status }
+      const errorData = await response.json().catch(() => ({ detail: 'Failed to fetch interview' }));
+      return new NextResponse(
+        JSON.stringify({ error: errorData.detail || 'Failed to fetch interview' }),
+        { 
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        }
       );
     }
 
     const data = await response.json();
-    return NextResponse.json(data);
+    return new NextResponse(
+      JSON.stringify(data),
+      { 
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
   } catch (error) {
     console.error('Error fetching interview:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: 'Internal server error' }),
+      { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
   }
 }
@@ -61,9 +77,12 @@ export async function DELETE(
     const authHeader = headersList.get('authorization');
 
     if (!authHeader) {
-      return NextResponse.json(
-        { error: 'Authorization header is required' },
-        { status: 401 }
+      return new NextResponse(
+        JSON.stringify({ error: 'Authorization header is required' }),
+        { 
+          status: 401,
+          headers: { 'Content-Type': 'application/json' }
+        }
       );
     }
 
@@ -73,23 +92,36 @@ export async function DELETE(
         'Authorization': authHeader,
         'Content-Type': 'application/json',
       },
+      cache: 'no-store',
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      return NextResponse.json(
-        { error: errorData.detail || 'Failed to delete interview' },
-        { status: response.status }
+      const errorData = await response.json().catch(() => ({ detail: 'Failed to delete interview' }));
+      return new NextResponse(
+        JSON.stringify({ error: errorData.detail || 'Failed to delete interview' }),
+        { 
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        }
       );
     }
 
     const data = await response.json();
-    return NextResponse.json(data);
+    return new NextResponse(
+      JSON.stringify(data),
+      { 
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
   } catch (error) {
     console.error('Error deleting interview:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: 'Internal server error' }),
+      { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
   }
 } 
