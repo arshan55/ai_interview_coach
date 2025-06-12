@@ -3,6 +3,10 @@ import { headers } from 'next/headers';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
+// Force dynamic rendering and use edge runtime for this proxy route
+export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
+
 export async function POST(request: Request) {
   try {
     const headersList = headers();
