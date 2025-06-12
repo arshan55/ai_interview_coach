@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 
+// Force dynamic rendering and edge runtime
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
+
+// Prevent static optimization
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
 const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
@@ -26,6 +31,7 @@ export async function GET(
         'Authorization': authHeader,
         'Content-Type': 'application/json',
       },
+      cache: 'no-store',
     });
 
     if (!response.ok) {
