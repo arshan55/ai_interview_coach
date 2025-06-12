@@ -1,19 +1,22 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 
+export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
+
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 export async function GET() {
   try {
     const headersList = headers();
-    const token = headersList.get('authorization');
+    const authHeader = headersList.get('authorization');
 
     console.log('Backend URL:', BACKEND_URL);
-    console.log('Authorization token present:', !!token);
+    console.log('Authorization token present:', !!authHeader);
 
-    if (!token) {
+    if (!authHeader) {
       return NextResponse.json(
-        { error: 'No authorization token provided' },
+        { error: 'Authorization header is required' },
         { status: 401 }
       );
     }
@@ -23,7 +26,7 @@ export async function GET() {
 
     const response = await fetch(url, {
       headers: {
-        'Authorization': token,
+        'Authorization': authHeader,
         'Content-Type': 'application/json'
       }
     });
@@ -32,30 +35,18 @@ export async function GET() {
     console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
-      console.log('Error response content type:', contentType);
-
-      if (contentType && contentType.includes('application/json')) {
-        const errorData = await response.json();
-        console.log('Error data:', errorData);
-        return NextResponse.json(
-          { error: errorData?.error || 'Failed to fetch interviews' },
-          { status: response.status }
-        );
-      } else {
-        const text = await response.text();
-        console.log('Non-JSON error response:', text);
-        return NextResponse.json(
-          { error: 'Failed to fetch interviews. Please try again later.' },
-          { status: response.status }
-        );
-      }
+      const errorData = await response.json();
+      console.log('Error data:', errorData);
+      return NextResponse.json(
+        { error: errorData.detail || 'Failed to fetch user interviews' },
+        { status: response.status }
+      );
     }
 
     const data = await response.json();
     return NextResponse.json(data);
   } catch (error) {
-    console.error('Error in interviews/user route:', error);
+    console.error('Error fetching user interviews:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
       { status: 500 }
