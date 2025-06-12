@@ -125,4 +125,57 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// @route   POST api/auth/google/user
+// @desc    Create or update user from Google OAuth
+// @access  Public
+router.post('/google/user', async (req, res) => {
+  try {
+    const { email, name, picture, googleId } = req.body;
+    console.log('Google OAuth login attempt for email:', email);
+
+    // Check if user exists
+    let user = await User.findOne({ email });
+
+    if (user) {
+      // Update existing user's Google info
+      user.googleId = googleId;
+      user.picture = picture;
+      await user.save();
+      console.log('Updated existing user with Google info:', email);
+    } else {
+      // Create new user
+      user = new User({
+        name,
+        email,
+        googleId,
+        picture,
+        password: await bcrypt.hash(Math.random().toString(36), 10) // Random password for Google users
+      });
+      await user.save();
+      console.log('Created new user from Google:', email);
+    }
+
+    // Create JWT token
+    const payload = {
+      user: {
+        id: user.id
+      }
+    };
+
+    jwt.sign(
+      payload,
+      process.env.JWT_SECRET,
+      { expiresIn: '800d' },
+      (err, token) => {
+        if (err) throw err;
+        console.log('Token generated for Google user:', email);
+        res.json({ token });
+      }
+    );
+  } catch (err) {
+    console.error('Error in POST /api/auth/google/user:', err.message);
+    res.status(500).json({ error: 'Server Error' });
+  }
+});
+
 module.exports = router; 
