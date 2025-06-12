@@ -53,6 +53,10 @@ export default function Home() {
           console.log('Response status:', interviewsResponse.status);
           console.log('Response headers:', Object.fromEntries(interviewsResponse.headers.entries()));
 
+          // Read the response body as text once
+          const responseBodyText = await interviewsResponse.text();
+          console.log('Raw response body:', responseBodyText);
+
           if (!interviewsResponse.ok) {
             if (interviewsResponse.status === 401) {
               console.log('Token expired or invalid');
@@ -61,21 +65,20 @@ export default function Home() {
               throw new Error('Session expired. Please sign in again.');
             }
             
-            const contentType = interviewsResponse.headers.get('content-type');
-            console.log('Error response content type:', contentType);
-
-            if (contentType && contentType.includes('application/json')) {
-              const errorData = await interviewsResponse.json();
-              console.log('Error data:', errorData);
-              throw new Error(errorData.error || errorData.msg || 'Failed to fetch interviews');
-            } else {
-              const text = await interviewsResponse.text();
-              console.error('Non-JSON error response:', text);
-              throw new Error('Failed to fetch interviews. Please try again later.');
+            let errorMessage = 'Failed to fetch interviews';
+            try {
+              const errorData = JSON.parse(responseBodyText);
+              errorMessage = errorData.error || errorData.msg || errorMessage;
+            } catch (e) {
+              // If parsing fails, use the raw text as the error message
+              console.error('Non-JSON error response:', responseBodyText);
+              errorMessage = responseBodyText || errorMessage;
             }
+            throw new Error(errorMessage);
           }
 
-          const interviewsData = await interviewsResponse.json();
+          // If response is OK, parse the already-read text as JSON
+          const interviewsData = JSON.parse(responseBodyText);
           console.log('Interviews data:', interviewsData);
           setInterviews(interviewsData);
 
