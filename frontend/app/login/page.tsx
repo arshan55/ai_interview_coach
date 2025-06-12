@@ -18,6 +18,7 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      console.log('Attempting login...');
       const response = await fetch('/api/auth/login', {
         method: 'POST',
         headers: {
@@ -26,15 +27,27 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
+      console.log('Login response status:', response.status);
       const data = await response.json();
+      console.log('Login response:', data);
 
       if (!response.ok) {
-        throw new Error(data.message || 'Login failed');
+        throw new Error(data.error || 'Login failed');
       }
 
+      if (!data.token) {
+        throw new Error('No token received');
+      }
+
+      // Store token in localStorage
+      localStorage.setItem('token', data.token);
+      console.log('Token stored, redirecting...');
+      
+      // Redirect to home page
       router.push('/');
     } catch (err: any) {
-      setError(err.message);
+      console.error('Login error:', err);
+      setError(err.message || 'Failed to login');
     } finally {
       setLoading(false);
     }
