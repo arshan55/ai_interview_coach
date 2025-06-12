@@ -199,21 +199,22 @@ export default function InterviewPage() {
 
         console.log('Interview API response status:', response.status);
         
+        let responseBodyText = await response.text();
+        console.log('Raw Interview API response body:', responseBodyText);
+
         if (!response.ok) {
           let errorMessage = 'Failed to start interview';
           try {
-            const errorData = await response.json();
+            const errorData = JSON.parse(responseBodyText); // Try parsing as JSON
             errorMessage = errorData.error || errorData.msg || errorMessage;
           } catch (e) {
-            // If response is not JSON, get the text
-            const text = await response.text();
-            console.error('Non-JSON error response:', text);
-            errorMessage = text || errorMessage;
+            // If parsing fails, use the raw text
+            errorMessage = responseBodyText || errorMessage;
           }
           throw new Error(errorMessage);
         }
 
-        const data = await response.json();
+        const data = JSON.parse(responseBodyText); // Use the already read text
         console.log('Interview started successfully:', data);
         setInterview(data);
         setCurrentQuestionIndex(0);
