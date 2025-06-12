@@ -132,12 +132,14 @@ export default function Home() {
       const response = await fetch(`/api/interviews/${interviewId}`, {
         method: 'DELETE',
         headers: {
-          'Authorization': `Bearer ${token}`
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
         }
       });
 
       if (!response.ok) {
-        throw new Error('Failed to delete interview');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to delete interview');
       }
 
       // Remove the deleted interview from the state

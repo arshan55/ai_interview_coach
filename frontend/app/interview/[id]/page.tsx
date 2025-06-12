@@ -39,7 +39,7 @@ const staggerContainer = {
   }
 };
 
-export default function InterviewDetailsPage() {
+export default function InterviewDetailsPage({ params }: { params: { id: string } }) {
   const [interview, setInterview] = useState<Interview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -55,36 +55,30 @@ export default function InterviewDetailsPage() {
           return;
         }
 
-        const pathSegments = window.location.pathname.split('/');
-        const interviewId = pathSegments[pathSegments.length - 1];
-
-        const response = await fetch(`/api/interviews/${interviewId}`, {
+        const response = await fetch(`/api/interviews/${params.id}`, {
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
           }
         });
 
         if (!response.ok) {
           const errorData = await response.json();
-          if (response.status === 404) {
-            router.push('/profile');
-            return;
-          }
-          throw new Error(errorData.msg || 'Failed to fetch interview');
+          throw new Error(errorData.error || 'Failed to fetch interview');
         }
 
         const data = await response.json();
         setInterview(data);
       } catch (err) {
         console.error('Error fetching interview:', err);
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        setError(err instanceof Error ? err.message : 'Failed to fetch interview');
       } finally {
         setLoading(false);
       }
     };
 
     fetchInterview();
-  }, [router]);
+  }, [params.id, router]);
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
