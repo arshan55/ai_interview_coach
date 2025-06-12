@@ -11,9 +11,11 @@ export async function GET(request: Request) {
     const code = searchParams.get('code');
 
     if (!code) {
+      console.error('No code provided in Google callback');
       return NextResponse.redirect(new URL('/login?error=No code provided', request.url));
     }
 
+    console.log('Exchanging code for tokens...');
     // Exchange the code for tokens
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',
@@ -30,13 +32,16 @@ export async function GET(request: Request) {
     });
 
     if (!tokenResponse.ok) {
-      console.error('Token exchange failed:', await tokenResponse.text());
+      const errorText = await tokenResponse.text();
+      console.error('Token exchange failed:', errorText);
       return NextResponse.redirect(new URL('/login?error=Failed to exchange code', request.url));
     }
 
     const tokens = await tokenResponse.json();
+    console.log('Successfully exchanged code for tokens');
 
     // Get user info
+    console.log('Fetching user info from Google...');
     const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: {
         Authorization: `Bearer ${tokens.access_token}`,
@@ -44,13 +49,16 @@ export async function GET(request: Request) {
     });
 
     if (!userResponse.ok) {
-      console.error('User info fetch failed:', await userResponse.text());
+      const errorText = await userResponse.text();
+      console.error('User info fetch failed:', errorText);
       return NextResponse.redirect(new URL('/login?error=Failed to get user info', request.url));
     }
 
     const userData = await userResponse.json();
+    console.log('Successfully fetched user info:', userData.email);
 
     // Create or update user in our backend
+    console.log('Creating/updating user in backend...');
     const backendResponse = await fetch(`${BACKEND_URL}/api/auth/google/user`, {
       method: 'POST',
       headers: {
@@ -65,16 +73,18 @@ export async function GET(request: Request) {
     });
 
     if (!backendResponse.ok) {
-      console.error('Backend user creation failed:', await backendResponse.text());
+      const errorText = await backendResponse.text();
+      console.error('Backend user creation failed:', errorText);
       return NextResponse.redirect(new URL('/login?error=Failed to create user', request.url));
     }
 
     const { token } = await backendResponse.json();
+    console.log('Successfully created/updated user and got token');
 
     // Create a response with the user data and tokens
     const response = NextResponse.redirect(new URL('/', request.url));
     
-    // Set the token in a cookie
+    // Set the token in both cookie and localStorage
     response.cookies.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
@@ -82,7 +92,23 @@ export async function GET(request: Request) {
       maxAge: 60 * 60 * 24 * 7, // 1 week
     });
 
-    return response;
+    // Add a script to set the token in localStorage
+    const html = `
+      <html>
+        <body>
+          <script>
+            localStorage.setItem('token', '${token}');
+            window.location.href = '/';
+          </script>
+        </body>
+      </html>
+    `;
+
+    return new Response(html, {
+      headers: {
+        'Content-Type': 'text/html',
+      },
+    });
   } catch (error) {
     console.error('Error in Google callback:', error);
     return NextResponse.redirect(new URL('/login?error=Internal server error', request.url));
