@@ -1,11 +1,12 @@
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
-
-// Force dynamic rendering and use edge runtime for this proxy route
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 export async function POST(request: Request) {
   try {
@@ -24,21 +25,34 @@ export async function POST(request: Request) {
         'Authorization': token || '', // Forward authorization token
       },
       body: JSON.stringify(body),
+      cache: 'no-store',
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('Error forwarding interview request to backend:', response.status, errorText);
-      return new NextResponse(errorText, { status: response.status });
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { error: errorText || 'Failed to start interview' };
+      }
+      console.error('Error forwarding interview request to backend:', response.status, errorData);
+      return new NextResponse(
+        JSON.stringify({ error: errorData.error || 'Failed to start interview' }),
+        { status: response.status, headers: { 'Content-Type': 'application/json' } }
+      );
     }
 
     const data = await response.json();
-    return NextResponse.json(data);
+    return new NextResponse(
+      JSON.stringify(data),
+      { status: 200, headers: { 'Content-Type': 'application/json' } }
+    );
   } catch (error) {
     console.error('Error in frontend /api/interviews POST route:', error);
-    return NextResponse.json(
-      { error: 'Internal server error at frontend interviews proxy' },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: 'Internal server error at frontend interviews proxy' }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }
 } 
