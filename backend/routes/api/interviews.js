@@ -495,24 +495,25 @@ router.use((err, req, res, next) => {
 router.get('/user', auth, async (req, res) => {
   try {
     // Log the request details for debugging
-    console.log('GET /api/interviews/user - User ID:', req.user.id);
+    console.log('GET /api/interviews/user: Entering route. User ID:', req.user.id); 
     
-    // Validate user ID
+    // Validate user ID (this check should ideally be redundant if auth middleware works)
     if (!req.user || !req.user.id) {
-      console.error('Invalid user ID in request');
+      console.error('GET /api/interviews/user: Invalid user ID in request (should have been caught by auth middleware)'); 
       return res.status(401).json({ error: 'User not authenticated' });
     }
 
     // Find interviews for the user
+    console.log('GET /api/interviews/user: Attempting to find interviews for user:', req.user.id); // Log before DB call
     const interviews = await Interview.find({ user: req.user.id })
       .select('-questions') // Don't send the questions array to reduce payload size
       .sort({ date: -1 }); // Sort by date, newest first
     
-    console.log(`Found ${interviews.length} interviews for user ${req.user.id}`);
+    console.log(`GET /api/interviews/user: Found ${interviews.length} interviews for user ${req.user.id}`); // Log after successful DB call
     res.json(interviews);
   } catch (err) {
-    console.error('Error in GET /api/interviews/user:', err);
-    res.status(500).json({ error: 'Server Error', details: err.message });
+    console.error('GET /api/interviews/user: Error fetching interviews:', err.message); // Use err.message
+    res.status(500).json({ error: 'Server Error: Failed to fetch user interviews', details: err.message }); // More detailed error response
   }
 });
 
