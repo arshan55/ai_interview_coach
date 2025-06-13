@@ -9,16 +9,26 @@ import { Textarea } from '@/components/ui/textarea';
 import { Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
-import type { SpeechRecognitionEvent } from 'web-speech';
 
 interface Question {
   questionText: string;
-  answerText: string | null;
-  codeAnswer: string | null;
-  feedback: string | null;
-  score: number | null;
-  codeFeedback: string | null;
-  codeScore: number | null;
+  answerText?: string;
+  feedback?: string;
+}
+
+interface SpeechRecognitionResult {
+  transcript: string;
+  confidence: number;
+}
+
+interface SpeechRecognitionResultList {
+  [index: number]: {
+    [index: number]: SpeechRecognitionResult;
+  };
+}
+
+interface SpeechRecognitionEvent {
+  results: SpeechRecognitionResultList;
 }
 
 interface Interview {
@@ -65,7 +75,7 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
     recognition.interimResults = false; // Only return final results
     recognition.lang = 'en-US';
 
-    recognition.onresult = (event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => {
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
       const spokenText = event.results[0][0].transcript;
       setTranscript(spokenText);
       // Potentially, you could automatically submit or fill an answer field here
@@ -380,16 +390,7 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
                     </div>
                   )}
 
-                  {question.codeAnswer && (
-                    <div className="mt-4 bg-gray-700 p-4 rounded-lg">
-                      <h3 className="text-lg font-semibold mb-2">Your Code</h3>
-                      <pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto">
-                        <code className="text-sm">{question.codeAnswer}</code>
-                      </pre>
-                    </div>
-                  )}
-
-                  {!question.codeAnswer && ( // Only show for non-coding questions
+                  {!question.answerText && ( // Only show for non-answered questions
                     <div className="mt-4">
                       <button
                         onClick={() => startRecording(index)}
@@ -438,32 +439,6 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
                       </div>
                     </div>
                   )}
-                  {/* Code Feedback Section */}
-                  {question.codeFeedback && (
-                    <div className="bg-purple-900/80 border-l-4 border-purple-400 p-4 rounded-lg mb-2">
-                      <h4 className="text-lg font-semibold mb-1 text-purple-200">Code Feedback</h4>
-                      <div className="text-purple-100">
-                        <ReactMarkdown>{question.codeFeedback}</ReactMarkdown>
-                      </div>
-                    </div>
-                  )}
-                  {/* Score Badges */}
-                  <div className="flex items-center space-x-4 mt-2">
-                    {question.score !== null && (
-                      <div className={`px-4 py-2 rounded font-semibold text-white ${
-                        question.score >= 7 ? 'bg-green-700' : question.score >= 4 ? 'bg-yellow-600 text-gray-900' : 'bg-red-700'
-                      }`}>
-                        Score: {question.score.toFixed(1)}/10
-                      </div>
-                    )}
-                    {question.codeScore !== null && (
-                      <div className={`px-4 py-2 rounded font-semibold text-white ${
-                        question.codeScore >= 7 ? 'bg-green-700' : question.codeScore >= 4 ? 'bg-yellow-600 text-gray-900' : 'bg-red-700'
-                      }`}>
-                        Code Score: {question.codeScore.toFixed(1)}/10
-                      </div>
-                    )}
-                  </div>
                 </div>
               </motion.div>
             ))}
