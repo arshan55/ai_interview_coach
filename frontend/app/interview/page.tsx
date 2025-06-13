@@ -4,14 +4,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import useSpeechRecognition from 'react-hook-speech-to-text';
 
-// Add Web Speech API type definitions
-declare global {
-  interface Window {
-    SpeechRecognition: any;
-    webkitSpeechRecognition: any;
-  }
-}
-
 interface ResultType {
   transcript: string;
   isFinal: boolean;
