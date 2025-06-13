@@ -48,8 +48,8 @@ export async function POST(request: Request) {
       JSON.stringify(data),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
-    console.error('Error in frontend /api/interviews POST route:', error);
+  } catch (error: any) {
+    console.error('Error in frontend /api/interviews POST route:', error.message, error.stack);
     return new NextResponse(
       JSON.stringify({ error: 'Internal server error at frontend interviews proxy' }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
