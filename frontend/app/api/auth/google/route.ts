@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 // Use the actual Vercel deployment URL - must match exactly what's in Google Cloud Console
 const REDIRECT_URI = process.env.NODE_ENV === 'production' 
-  ? 'https://ai-interview-coach-delta.vercel.app/api/auth/google/callback'
+  ? `${process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL}/api/auth/google/callback`
   : 'http://localhost:3000/api/auth/google/callback';
 
 if (!GOOGLE_CLIENT_ID) {

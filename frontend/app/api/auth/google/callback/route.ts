@@ -3,9 +3,10 @@ import { NextResponse } from 'next/server';
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+
 // Ensure REDIRECT_URI is dynamic for local and production environments
 const REDIRECT_URI = process.env.NODE_ENV === 'production' 
-  ? 'https://ai-interview-coach-delta.vercel.app/api/auth/google/callback'
+  ? `${process.env.NEXT_PUBLIC_APP_URL || process.env.VERCEL_URL}/api/auth/google/callback`
   : 'http://localhost:3000/api/auth/google/callback';
 
 // Force dynamic rendering and use edge runtime
