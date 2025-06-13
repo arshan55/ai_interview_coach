@@ -90,18 +90,18 @@ export async function GET(request: Request) {
     const { token } = await backendResponse.json();
     console.log('Successfully created/updated user and got token');
 
-    // Create a response with the user data and tokens
-    const response = NextResponse.redirect(new URL('/', request.url));
+    // Remove server-side redirect to ensure client-side script executes
+    // const response = NextResponse.redirect(new URL('/', request.url));
     
-    // Set the token in both cookie and localStorage
-    response.cookies.set('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 7, // 1 week
-    });
+    // Set the token in a cookie (optional, but good for SSR/security)
+    // response.cookies.set('token', token, {
+    //   httpOnly: true,
+    //   secure: process.env.NODE_ENV === 'production',
+    //   sameSite: 'lax',
+    //   maxAge: 60 * 60 * 24 * 7, // 1 week
+    // });
 
-    // Add a script to set the token in localStorage
+    // Add a script to set the token in localStorage and then redirect
     const html = `
       <html>
         <body>
