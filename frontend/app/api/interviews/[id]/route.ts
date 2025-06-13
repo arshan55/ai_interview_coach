@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 
 // Force dynamic rendering and edge runtime
 export const dynamic = 'force-dynamic';
