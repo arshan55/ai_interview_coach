@@ -2,14 +2,15 @@
 const nextConfig = {
   reactStrictMode: true,
   swcMinify: true,
-  async rewrites() {
-    return [
-      {
-        source: '/api/:path*',
-        destination: 'http://localhost:5000/api/:path*',
-      },
-    ];
-  },
+  // Removed rewrites as they can interfere with Vercel API routes
+  // async rewrites() {
+  //   return [
+  //     {
+  //       source: '/api/:path*',
+  //       destination: 'http://localhost:5000/api/:path*',
+  //     },
+  //   ];
+  // },
   async headers() {
     return [
       {
