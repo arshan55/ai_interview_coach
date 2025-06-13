@@ -2,8 +2,14 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useAuth } from '@/context/AuthContext';
+import { Button } from '@/components/ui/button';
+import { Card } from '@/components/ui/card';
+import { Textarea } from '@/components/ui/textarea';
+import { Loader2 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import type { SpeechRecognitionEvent } from 'web-speech';
 
 interface Question {
   questionText: string;
@@ -59,7 +65,7 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
     recognition.interimResults = false; // Only return final results
     recognition.lang = 'en-US';
 
-    recognition.onresult = (event) => {
+    recognition.onresult = (event: { results: { [index: number]: { [index: number]: { transcript: string } } } }) => {
       const spokenText = event.results[0][0].transcript;
       setTranscript(spokenText);
       // Potentially, you could automatically submit or fill an answer field here
