@@ -31,12 +31,19 @@ interface SpeechRecognitionEvent {
   results: SpeechRecognitionResultList;
 }
 
+interface SpeechRecognitionErrorEvent {
+  error: string;
+  message: string;
+}
+
 interface Interview {
-  _id: string;
+  id: string;
+  title: string;
   role: string;
   programmingLanguage?: string;
   questions: Question[];
-  date: string;
+  status: 'pending' | 'completed';
+  createdAt: string;
   overallFeedback?: string;
   overallScore?: number;
 }
@@ -81,7 +88,7 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
       // Potentially, you could automatically submit or fill an answer field here
     };
 
-    recognition.onerror = (event) => {
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Speech recognition error:', event.error);
       setIsRecording(false);
     };
@@ -244,8 +251,7 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
           className="flex justify-between items-center mb-8"
         >
           <h1 className="text-3xl font-bold">
-            {interview.role.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} Interview
-            {interview.programmingLanguage && ` - ${interview.programmingLanguage}`}
+            {interview.title.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} Interview
           </h1>
           <motion.button
             whileHover={{ scale: 1.05 }}
