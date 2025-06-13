@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+export const dynamic = 'force-dynamic';
+export const runtime = 'edge';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
+
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
 export async function POST(request: Request) {
   try {
@@ -16,36 +21,39 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({ email, password }),
+      cache: 'no-store',
     });
 
     console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
     if (!response.ok) {
-      const contentType = response.headers.get('content-type');
-      console.log('Error response content type:', contentType);
-
-      if (contentType && contentType.includes('application/json')) {
-        const errorData = await response.json();
-        console.log('Error data:', errorData);
-        return NextResponse.json(
-          { error: errorData.error || 'Login failed' },
-          { status: response.status }
-        );
-      } else {
-        const text = await response.text();
-        console.error('Non-JSON error response:', text);
-        return NextResponse.json(
-          { error: 'Failed to login. Please try again later.' },
-          { status: response.status }
-        );
+      const errorText = await response.text();
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+      } catch (e) {
+        errorData = { error: errorText || 'Login failed' };
       }
+      console.error('Error response from backend:', errorData);
+      return new NextResponse(
+        JSON.stringify({ error: errorData.error || 'Login failed' }),
+        { 
+          status: response.status,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
     }
 
     const data = await response.json();
     console.log('Login successful for:', email);
 
-    const res = NextResponse.json(data);
+    const res = new NextResponse(
+      JSON.stringify(data),
+      { 
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
     
     // Set the token in a cookie
     res.cookies.set('token', data.token, {
@@ -58,9 +66,12 @@ export async function POST(request: Request) {
     return res;
   } catch (error) {
     console.error('Login error:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
+    return new NextResponse(
+      JSON.stringify({ error: 'Internal server error at login proxy' }),
+      { 
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      }
     );
   }
 } 
