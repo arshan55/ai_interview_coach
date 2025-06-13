@@ -1,3 +1,5 @@
+console.log("Loaded interviews.js route file");
+
 const express = require('express');
 const router = express.Router();
 const { check, validationResult } = require('express-validator');
@@ -493,6 +495,7 @@ router.use((err, req, res, next) => {
 // @desc Get all interviews for the authenticated user
 // @access Private
 router.get('/user', auth, async (req, res) => {
+  console.log("GET /api/interviews/user called");
   try {
     // Log the request details for debugging
     console.log('GET /api/interviews/user: Entering route. User ID:', req.user.id); 
