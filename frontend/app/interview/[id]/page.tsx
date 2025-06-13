@@ -46,6 +46,53 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
   const [showSection, setShowSection] = useState<'overall' | 'questions' | 'feedback'>('overall');
   const router = useRouter();
 
+  const [isRecording, setIsRecording] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number | null>(null);
+
+  // Speech Recognition setup
+  const SpeechRecognition = typeof window !== 'undefined' && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+
+  if (recognition) {
+    recognition.continuous = false; // Capture a single utterance
+    recognition.interimResults = false; // Only return final results
+    recognition.lang = 'en-US';
+
+    recognition.onresult = (event: SpeechRecognitionEvent) => {
+      const spokenText = event.results[0][0].transcript;
+      setTranscript(spokenText);
+      // Potentially, you could automatically submit or fill an answer field here
+    };
+
+    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+      console.error('Speech recognition error:', event.error);
+      setIsRecording(false);
+    };
+
+    recognition.onend = () => {
+      setIsRecording(false);
+    };
+  }
+
+  const startRecording = (index: number) => {
+    if (recognition) {
+      setCurrentQuestionIndex(index);
+      setTranscript(''); // Clear previous transcript
+      setIsRecording(true);
+      recognition.start();
+    } else {
+      alert('Speech recognition not supported in this browser.');
+    }
+  };
+
+  const stopRecording = () => {
+    if (recognition) {
+      recognition.stop();
+      setIsRecording(false);
+    }
+  };
+
   useEffect(() => {
     const fetchInterview = async () => {
       try {
@@ -333,6 +380,25 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
                       <pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto">
                         <code className="text-sm">{question.codeAnswer}</code>
                       </pre>
+                    </div>
+                  )}
+
+                  {!question.codeAnswer && ( // Only show for non-coding questions
+                    <div className="mt-4">
+                      <button
+                        onClick={() => startRecording(index)}
+                        className={`px-4 py-2 rounded transition-colors ${isRecording && currentQuestionIndex === index ? 'bg-red-600 hover:bg-red-700' : 'bg-green-600 hover:bg-green-700'}
+                        text-white font-semibold`}
+                        disabled={isRecording && currentQuestionIndex !== index}
+                      >
+                        {isRecording && currentQuestionIndex === index ? 'Stop Recording' : 'Speak Answer'}
+                      </button>
+                      {transcript && currentQuestionIndex === index && (
+                        <div className="mt-2 p-3 bg-gray-700 rounded-lg">
+                          <h3 className="text-md font-semibold mb-1">Recognized Text:</h3>
+                          <p className="text-gray-300">{transcript}</p>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
