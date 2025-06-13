@@ -512,8 +512,8 @@ router.get('/user', auth, async (req, res) => {
     console.log(`GET /api/interviews/user: Found ${interviews.length} interviews for user ${req.user.id}`); // Log after successful DB call
     res.json(interviews);
   } catch (err) {
-    console.error('GET /api/interviews/user: Error fetching interviews:', err.message); // Use err.message
-    res.status(500).json({ error: 'Server Error: Failed to fetch user interviews', details: err.message }); // More detailed error response
+    console.error('Error fetching user interviews:', err.message, err.stack);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 
