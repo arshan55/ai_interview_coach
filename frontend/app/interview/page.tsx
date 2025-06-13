@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import useSpeechRecognition from 'react-hook-speech-to-text';
 
 // Add Web Speech API type definitions
 declare global {
@@ -72,6 +73,45 @@ export default function InterviewPage() {
   const recognitionRef = useRef<any>(null);
 
   const [isGeneratingFeedback, setIsGeneratingFeedback] = useState(false);
+
+  const {
+    error: speechError,
+    interimResult,
+    isRecording: speechIsRecording,
+    results,
+    startSpeechToText,
+    stopSpeechToText
+  } = useSpeechRecognition({
+    continuous: true,
+    crossBrowser: true,
+    googleApiKey: process.env.NEXT_PUBLIC_GOOGLE_AI_API_KEY,
+    useOnlyGoogleCloud: false,
+    timeout: 10000
+  });
+
+  const toggleRecording = () => {
+    if (speechIsRecording) {
+      stopSpeechToText();
+      setIsRecording(false);
+    } else {
+      startSpeechToText();
+      setIsRecording(true);
+    }
+  };
+
+  // Update transcribed text when results change
+  useEffect(() => {
+    if (results.length > 0) {
+      setTranscribedText(results[results.length - 1].toString());
+    }
+  }, [results]);
+
+  // Update interim text when interim result changes
+  useEffect(() => {
+    if (interimResult) {
+      setInterimText(interimResult);
+    }
+  }, [interimResult]);
 
   // Initialize speech recognition
   useEffect(() => {
@@ -692,32 +732,64 @@ export default function InterviewPage() {
           {!isAnswered ? (
               <div className="card p-6">
                 <h3 className="text-lg font-medium text-slate-300 mb-4">Your Answer:</h3>
-                <textarea
-                  value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
-                  className="input min-h-[200px]"
-                  placeholder="Type your answer here..."
-                  disabled={isGeneratingFeedback}
-                />
+                <div className="flex flex-col space-y-4">
+                  <textarea
+                    className="input flex-1 font-mono text-base"
+                    value={transcribedText || answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    placeholder="Type your answer or use speech-to-text..."
+                    rows={6}
+                    disabled={isGeneratingFeedback}
+                  />
+                  <div className="flex items-center space-x-4">
                     <button
-                  onClick={submitAnswer}
-                  disabled={isGeneratingFeedback || !answer.trim()}
-                  className={`btn btn-primary mt-4 w-full flex items-center justify-center gap-2 ${
-                    isGeneratingFeedback ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
+                      onClick={toggleRecording}
+                      className={`btn ${
+                        speechIsRecording ? 'btn-error' : 'btn-secondary'
+                      } flex items-center gap-2`}
+                      disabled={isGeneratingFeedback}
                     >
-                  {isGeneratingFeedback ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Generating Feedback...
-                    </>
-                  ) : (
-                    'Submit Answer'
-                  )}
+                      {speechIsRecording ? (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+                          </svg>
+                          Stop Recording
+                        </>
+                      ) : (
+                        <>
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z" />
+                          </svg>
+                          Start Recording
+                        </>
+                      )}
+                    </button>
+                    {interimText && (
+                      <span className="text-sm text-slate-400">Listening...</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={submitAnswer}
+                    disabled={isGeneratingFeedback || (!transcribedText.trim() && !answer.trim())}
+                    className={`btn btn-primary w-full flex items-center justify-center gap-2 ${
+                      isGeneratingFeedback ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {isGeneratingFeedback ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Generating Feedback...
+                      </>
+                    ) : (
+                      'Submit Answer'
+                    )}
                   </button>
+                </div>
               </div>
           ) : (
               <div className="space-y-6">
