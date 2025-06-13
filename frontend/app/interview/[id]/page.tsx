@@ -59,13 +59,13 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
     recognition.interimResults = false; // Only return final results
     recognition.lang = 'en-US';
 
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
+    recognition.onresult = (event) => {
       const spokenText = event.results[0][0].transcript;
       setTranscript(spokenText);
       // Potentially, you could automatically submit or fill an answer field here
     };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+    recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error);
       setIsRecording(false);
     };

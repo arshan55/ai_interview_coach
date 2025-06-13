@@ -42,7 +42,7 @@ export default function LoginPage() {
       // Store token in localStorage
       localStorage.setItem('token', data.token);
       console.log('Token stored, redirecting...');
-      
+
       // Redirect to home page
       router.push('/');
     } catch (err: any) {
@@ -69,27 +69,27 @@ export default function LoginPage() {
         className="max-w-md w-full space-y-8"
       >
         <div>
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
-            Sign in to your account
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-400">
-            Or{' '}
-            <Link href="/register" className="font-medium text-blue-500 hover:text-blue-400">
-              create a new account
-            </Link>
-          </p>
-        </div>
+        <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
+          Sign in to your account
+        </h2>
+        <p className="mt-2 text-center text-sm text-gray-400">
+          Or{' '}
+          <Link href="/register" className="font-medium text-blue-500 hover:text-blue-400">
+            create a new account
+          </Link>
+        </p>
+      </div>
 
-        {error && (
+            {error && (
           <motion.div 
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
             className="bg-red-500 text-white p-3 rounded-md text-center"
           >
-            {error}
+                {error}
           </motion.div>
-        )}
-
+            )}
+            
         <div className="mt-8 space-y-6">
           <button
             onClick={handleGoogleSignIn}
@@ -115,10 +115,10 @@ export default function LoginPage() {
 
           <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
             <div className="rounded-md shadow-sm -space-y-px">
-              <div>
+            <div>
                 <label htmlFor="email-address" className="sr-only">
-                  Email address
-                </label>
+                Email address
+              </label>
                 <input
                   id="email-address"
                   name="email"
@@ -131,10 +131,10 @@ export default function LoginPage() {
                   onChange={(e) => setEmail(e.target.value)}
                 />
               </div>
-              <div>
+            <div>
                 <label htmlFor="password" className="sr-only">
-                  Password
-                </label>
+                Password
+              </label>
                 <input
                   id="password"
                   name="password"
