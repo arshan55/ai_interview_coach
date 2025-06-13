@@ -316,7 +316,7 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
               >
                 <div className="space-y-4">
                   <h2 className="text-xl font-semibold mb-2">Question {index + 1}</h2>
-                  <div className="prose prose-invert max-w-none">
+                  <div className="prose prose-invert max-w-none overflow-y-auto">
                     <ReactMarkdown>{question.questionText}</ReactMarkdown>
                   </div>
 
