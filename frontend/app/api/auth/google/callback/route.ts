@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:3001';
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
 // Ensure REDIRECT_URI is dynamic for local and production environments
 const REDIRECT_URI = process.env.NODE_ENV === 'production' 
@@ -12,6 +13,8 @@ const REDIRECT_URI = process.env.NODE_ENV === 'production'
 // Force dynamic rendering and use edge runtime
 export const dynamic = 'force-dynamic';
 export const runtime = 'edge';
+export const fetchCache = 'force-no-store';
+export const revalidate = 0;
 
 export async function GET(request: Request) {
   try {
