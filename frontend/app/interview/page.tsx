@@ -414,12 +414,15 @@ export default function InterviewPage() {
       setScore(null);
       setAnswer(''); // Clear answer input for the new question
       setSelectedCodingLanguage(''); // Clear selected language for the new question
-    } else if (interview.questions.length === 5) {
-      // If all 5 questions are answered and this is the last one, finish the interview
-      router.push('/');
     } else {
-      // This case should ideally not be reached if the backend correctly adds a new question until 5 are reached.
-      console.warn('Attempted to move to next question, but none available and interview not complete.');
+      // If this is the last question and all questions are answered, finish the interview
+      const allQuestionsAnswered = interview.questions.every(q => q.answerText !== null || q.codeAnswer !== null);
+      if (allQuestionsAnswered) {
+        router.push('/');
+      } else {
+        // This case should ideally not be reached if the backend correctly adds a new question until 5 are reached.
+        console.warn('Attempted to move to next question, but none available and interview not complete.');
+      }
     }
   };
 
@@ -631,7 +634,7 @@ export default function InterviewPage() {
                     <button
                       onClick={nextQuestion}
                       className="btn btn-secondary flex items-center gap-2"
-            >
+                    >
                       Next Question
                       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -639,14 +642,32 @@ export default function InterviewPage() {
                     </button>
                   ) : (
                     <button
-                      onClick={() => router.push('/')}
+                      onClick={() => {
+                        const allQuestionsAnswered = interview.questions.every(q => q.answerText !== null || q.codeAnswer !== null);
+                        if (allQuestionsAnswered) {
+                          router.push('/');
+                        } else {
+                          nextQuestion();
+                        }
+                      }}
                       className="btn btn-primary flex items-center gap-2"
                     >
-                      Finish Interview
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-            </button>
+                      {interview.questions.every(q => q.answerText !== null || q.codeAnswer !== null) ? (
+                        <>
+                          Finish Interview
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
+                        </>
+                      ) : (
+                        <>
+                          Next Question
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </>
+                      )}
+                    </button>
                   )}
                 </div>
               </div>
