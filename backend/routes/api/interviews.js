@@ -10,7 +10,7 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Initialize Gemini API
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-pro' }); // Changed model from 'gemini-2.0-flash' to 'gemini-pro'
+const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' }); // Changed model from 'gemini-1.0-pro' to 'gemini-2.0-flash' based on documentation
 
 // Helper function to generate prompt from interview history
 const generatePrompt = (interview) => {

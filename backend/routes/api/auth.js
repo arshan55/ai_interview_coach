@@ -43,45 +43,45 @@ router.post('/', async (req, res) => {
     console.log('POST /api/auth: Login attempt for email:', email);
 
     // Check if user exists
-    let user = await User.findOne({ email });
-    if (!user) {
+      let user = await User.findOne({ email });
+      if (!user) {
       console.log('POST /api/auth: Login failed: User not found');
       return res.status(400).json({ error: 'Invalid credentials' });
-    }
+      }
 
     // Validate password
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
+      const isMatch = await bcrypt.compare(password, user.password);
+      if (!isMatch) {
       console.log('POST /api/auth: Login failed: Invalid password');
       return res.status(400).json({ error: 'Invalid credentials' });
-    }
+      }
 
     // Create JWT token
-    const payload = {
-      user: {
+      const payload = {
+        user: {
         id: user.id
       }
-    };
+      };
 
     if (!process.env.JWT_SECRET) {
       console.error('POST /api/auth: JWT_SECRET not set, cannot sign token.');
       return res.status(500).json({ error: 'Server configuration error: JWT secret missing.' });
     }
 
-    jwt.sign(
-      payload,
-      process.env.JWT_SECRET,
+      jwt.sign(
+        payload,
+        process.env.JWT_SECRET,
       { expiresIn: '800d' },
-      (err, token) => {
+        (err, token) => {
         if (err) {
           console.error('POST /api/auth: JWT signing error:', err.message);
           return res.status(500).json({ error: 'Token generation failed', details: err.message });
         }
         console.log('POST /api/auth: Login successful, token generated for user:', email);
-        res.json({ token });
-      }
-    );
-  } catch (err) {
+          res.json({ token });
+        }
+      );
+    } catch (err) {
     console.error('POST /api/auth: Error:', err.message);
     res.status(500).json({ error: 'Server Error', details: err.message });
   }
@@ -140,8 +140,8 @@ router.post('/register', async (req, res) => {
         }
         console.log('POST /api/auth/register: Token generated for new user:', email);
         res.json({ token });
-      }
-    );
+  }
+);
   } catch (err) {
     console.error('POST /api/auth/register: Error:', err.message);
     res.status(500).json({ error: 'Server Error', details: err.message });
