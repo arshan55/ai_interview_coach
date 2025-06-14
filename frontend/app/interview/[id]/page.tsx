@@ -6,11 +6,12 @@ import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
 
 interface Question {
+  id: string;
   questionText: string;
   answerText: string | null;
-  codeAnswer: string | null;
   feedback: string | null;
   score: number | null;
+  isCodingQuestion: boolean;
   codeFeedback: string | null;
   codeScore: number | null;
 }
@@ -45,6 +46,11 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
   const [error, setError] = useState<string | null>(null);
   const [showSection, setShowSection] = useState<'overall' | 'questions' | 'feedback'>('overall');
   const router = useRouter();
+  const [isRecording, setIsRecording] = useState(false);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState<number | null>(null);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [interimResult, setInterimResult] = useState('');
+  const [recognition, setRecognition] = useState<any>(null);
 
   useEffect(() => {
     const fetchInterview = async () => {
@@ -80,6 +86,33 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
     fetchInterview();
   }, [params.id, router]);
 
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        const recognition = new SpeechRecognition();
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event: any) => {
+          const transcript = Array.from(event.results)
+            .map((result: any) => result[0])
+            .map((result: any) => result.transcript)
+            .join('');
+          
+          setInterimResult(transcript);
+        };
+
+        recognition.onerror = (event: any) => {
+          console.error('Speech recognition error:', event.error);
+        };
+
+        setRecognition(recognition);
+      }
+    }
+  }, []);
+
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleString('en-US', {
@@ -89,6 +122,27 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  const handleStartRecording = () => {
+    if (recognition) {
+      setIsRecording(true);
+      recognition.start();
+    }
+  };
+
+  const handleStopRecording = () => {
+    if (recognition) {
+      setIsRecording(false);
+      recognition.stop();
+      // Update the current question's answer
+      if (currentQuestionIndex !== null) {
+        const updatedQuestions = [...questions];
+        updatedQuestions[currentQuestionIndex].answerText = interimResult;
+        setQuestions(updatedQuestions);
+        setInterimResult('');
+      }
+    }
   };
 
   if (loading) {
@@ -321,18 +375,80 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
                   </div>
 
                   {question.answerText && (
-                    <div className="mt-4 bg-gray-700 p-4 rounded-lg">
-                      <h3 className="text-lg font-semibold mb-2">Your Answer</h3>
-                      <p className="text-gray-300 whitespace-pre-wrap leading-relaxed">{question.answerText}</p>
+                    <div className="mt-4">
+                      <h3 className="text-lg font-semibold mb-2">Your Answer:</h3>
+                      <div className="prose prose-invert max-w-none">
+                        <ReactMarkdown>{question.answerText}</ReactMarkdown>
+                      </div>
                     </div>
                   )}
 
-                  {question.codeAnswer && (
-                    <div className="mt-4 bg-gray-700 p-4 rounded-lg">
-                      <h3 className="text-lg font-semibold mb-2">Your Code</h3>
-                      <pre className="bg-gray-900 p-4 rounded-lg overflow-x-auto">
-                        <code className="text-sm">{question.codeAnswer}</code>
-                      </pre>
+                  {!question.answerText && !question.isCodingQuestion && (
+                    <div className="mt-4">
+                      <button
+                        onClick={isRecording ? handleStopRecording : handleStartRecording}
+                        className={`flex items-center gap-2 px-4 py-2 rounded-lg ${
+                          isRecording
+                            ? 'bg-red-500 hover:bg-red-600'
+                            : 'bg-blue-500 hover:bg-blue-600'
+                        }`}
+                      >
+                        {isRecording ? (
+                          <>
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M9 10a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z"
+                              />
+                            </svg>
+                            Stop Recording
+                          </>
+                        ) : (
+                          <>
+                            <svg
+                              className="w-5 h-5"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                              />
+                            </svg>
+                            Start Recording
+                          </>
+                        )}
+                      </button>
+                      {interimResult && (
+                        <div className="mt-2 text-gray-400">
+                          <p>Listening: {interimResult}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {question.isCodingQuestion && (
+                    <div className="mt-4">
+                      <h3 className="text-lg font-semibold mb-2">Your Code:</h3>
+                      <div className="prose prose-invert max-w-none">
+                        <ReactMarkdown>{question.answerText || ''}</ReactMarkdown>
+                      </div>
                     </div>
                   )}
                 </div>
