@@ -36,7 +36,7 @@ const RegisterPage = () => {
 
     try {
       console.log('Attempting registration with:', { name, email });
-      const response = await fetch('/api/auth/register', {
+      const response = await fetch('https://ai-interview-coach-bay.vercel.app/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
