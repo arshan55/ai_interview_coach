@@ -91,12 +91,12 @@ const ProfilePage = () => {
     return (
       <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white">
         <p className="text-red-500 text-xl mb-4">Error: {error}</p>
-        <button
+          <button
           onClick={handleLogout}
           className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
+          >
           Logout
-        </button>
+          </button>
       </div>
     );
   }
@@ -118,15 +118,15 @@ const ProfilePage = () => {
   return (
     <div className="min-h-screen bg-gray-900 text-white py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold">Welcome, {userProfile.name}!</h1>
-          <button
-            onClick={handleLogout}
+            <button
+              onClick={handleLogout}
             className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-          >
-            Logout
-          </button>
-        </div>
+            >
+              Logout
+            </button>
+          </div>
 
         <div className="bg-gray-800 rounded-lg p-6 mb-8 shadow-lg">
           <h2 className="text-2xl font-semibold mb-4">User Details</h2>

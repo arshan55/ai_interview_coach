@@ -10,22 +10,16 @@
   },
   "dependencies": {
     "@prisma/client": "^5.10.2",
-    "@radix-ui/react-slot": "^1.2.3",
     "@tailwindcss/typography": "^0.5.16",
     "axios": "^1.6.7",
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "framer-motion": "^12.18.1",
+    "framer-motion": "^12.15.0",
     "jose": "^5.2.3",
-    "lucide-react": "^0.515.0",
     "next": "14.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-hook-speech-to-text": "^0.8.0",
     "react-markdown": "^10.1.0",
     "react-tsparticles": "^2.12.2",
-    "sonner": "^2.0.5",
-    "tailwind-merge": "^3.3.1",
     "tsparticles-slim": "^2.12.0"
   },
   "devDependencies": {
