@@ -75,6 +75,7 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
 
         const data = await response.json();
         setInterview(data);
+        setQuestions(data.questions);
       } catch (err) {
         console.error('Error fetching interview:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch interview');
