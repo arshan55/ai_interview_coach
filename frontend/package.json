@@ -24,6 +24,7 @@
     "react-hook-speech-to-text": "^0.8.0",
     "react-markdown": "^10.1.0",
     "react-tsparticles": "^2.12.2",
+    "sonner": "^2.0.5",
     "tailwind-merge": "^3.3.1",
     "tsparticles-slim": "^2.12.0"
   },
