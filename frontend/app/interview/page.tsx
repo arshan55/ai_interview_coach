@@ -40,7 +40,6 @@ interface Interview {
 }
 
 export default function InterviewPage() {
-  console.log('InterviewPage component rendered');
   const router = useRouter();
   const pathname = usePathname();
   const [interview, setInterview] = useState<Interview | null>(null);
@@ -103,21 +102,18 @@ export default function InterviewPage() {
         };
 
         recognitionRef.current.onerror = (event: any) => {
-          console.error('Speech recognition error:', event.error);
           setError('Speech recognition failed. Please try again or use text input.');
           // Ensure transcription stops on error
           stopTranscribing();
         };
 
         recognitionRef.current.onend = () => {
-          console.log('Speech recognition ended. isTranscribing:', isTranscribing);
           // Removed automatic restart to prevent continuous unwanted transcription
         };
       }
     }
 
     return () => {
-      console.log('Cleaning up speech recognition on unmount.');
       if (recognitionRef.current) {
         recognitionRef.current.stop();
         // Explicitly set continuous to false during cleanup
@@ -132,9 +128,7 @@ export default function InterviewPage() {
     }
 
     const token = localStorage.getItem('token');
-    console.log('Token retrieved from localStorage:', token);
     if (!token) {
-      console.log('No token found, redirecting to login');
       router.push('/login');
       return;
     }
@@ -146,7 +140,6 @@ export default function InterviewPage() {
       try {
         setLoading(true);
         setError(null);
-        console.log(`Fetching interview with ID: ${id}`);
 
         const response = await fetch(`/api/interviews/${id}`, {
           headers: {
@@ -157,7 +150,6 @@ export default function InterviewPage() {
         if (!response.ok) {
           const errorData = await response.json();
           if (response.status === 404) {
-             console.log('Interview not found, redirecting to profile');
              router.push('/profile');
              return;
           }
@@ -165,7 +157,6 @@ export default function InterviewPage() {
         }
 
         const data: Interview = await response.json();
-        console.log('Interview fetched successfully:', data);
         setInterview(data);
 
         // Find the first unanswered question to resume
@@ -174,7 +165,6 @@ export default function InterviewPage() {
         setCurrentQuestionIndex(firstUnansweredIndex !== -1 ? firstUnansweredIndex : data.questions.length > 0 ? data.questions.length - 1 : 0);
 
       } catch (err) {
-        console.error('Error fetching interview:', err);
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
         setLoading(false);
@@ -185,7 +175,6 @@ export default function InterviewPage() {
       try {
         setLoading(true);
         setError(null);
-        console.log('Making API request to start new interview');
 
         const token = localStorage.getItem('token');
         const response = await fetch('/api/interviews', {
@@ -197,10 +186,7 @@ export default function InterviewPage() {
           body: JSON.stringify({ role, programmingLanguage })
         });
 
-        console.log('Interview API response status:', response.status);
-        
         let responseBodyText = await response.text();
-        console.log('Raw Interview API response body:', responseBodyText);
 
         if (!response.ok) {
           let errorMessage = 'Failed to start interview';
@@ -215,11 +201,9 @@ export default function InterviewPage() {
         }
 
         const data = JSON.parse(responseBodyText); // Use the already read text
-        console.log('Interview started successfully:', data);
         setInterview(data);
         setCurrentQuestionIndex(0);
       } catch (err) {
-        console.error('Error in startNewInterview:', err);
         setError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
         setLoading(false);
@@ -232,21 +216,17 @@ export default function InterviewPage() {
     } else {
       // No interview ID in URL, check localStorage for role data to start a new one
       const roleData = localStorage.getItem('selectedRole');
-      console.log('Retrieved role data from localStorage:', roleData);
       
       if (roleData) {
         try {
           const { role, programmingLanguage } = JSON.parse(roleData);
-          console.log('Attempting to start new interview with:', { role, programmingLanguage });
           startNewInterview(role, programmingLanguage);
         } catch (err) {
-          console.error('Error parsing role data from localStorage:', err);
           setError('Invalid role data. Please try again.');
           setLoading(false);
         }
       } else {
         // No interview ID in URL and no role data in localStorage, redirect
-        console.log('No interview ID in URL and no role data in localStorage, redirecting to role selection');
         router.push('/interview/role-select');
          setLoading(false);
       }
@@ -270,7 +250,6 @@ export default function InterviewPage() {
       if (!recognitionRef.current) {
         throw new Error('Speech recognition is not supported in this browser.');
       }
-      console.log('Attempting to start transcription.');
       setIsTranscribing(true);
       setTranscribedText('');
       setInterimText('');
@@ -279,21 +258,17 @@ export default function InterviewPage() {
       recognitionRef.current.continuous = true;
       
       recognitionRef.current.start();
-      console.log('Speech recognition started.');
 
     } catch (err) {
-      console.error('Error starting transcription:', err);
       setError('Could not start speech recognition. Please check your microphone permissions.');
     }
   };
 
   const stopTranscribing = () => {
-    console.log('Attempting to stop transcription.');
     if (recognitionRef.current) {
       // Explicitly set continuous to false when stopping
       recognitionRef.current.continuous = false;
       recognitionRef.current.stop();
-      console.log('Speech recognition stopped.');
     }
     setIsTranscribing(false);
     setInterimText('');
@@ -301,7 +276,7 @@ export default function InterviewPage() {
 
   const LoadingAnimation = () => (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-gray-800 p-6 rounded-lg shadow-xl text-center">
+      <div className="bg-white-800 p-6 rounded-lg shadow-xl text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
         <p className="text-white text-lg">Generating feedback...</p>
         <p className="text-gray-400 text-sm mt-2">This may take a few moments</p>
@@ -347,8 +322,6 @@ export default function InterviewPage() {
         requestBody.answerText = transcribedText.trim() || answer.trim();
       }
 
-      console.log('Request Body being sent:', requestBody);
-
       const response = await fetch(`/api/interviews/${interview._id}/answer`, {
         method: 'POST',
         headers: {
@@ -362,7 +335,6 @@ export default function InterviewPage() {
       const responseData = await response.json();
 
       if (!response.ok) {
-        console.error('Submission Error Response:', responseData);
         
         // Check for specific 503 Service Unavailable error
         if (response.status === 503) {
@@ -372,16 +344,12 @@ export default function InterviewPage() {
         }
       }
 
-      console.log('Received updated interview:', responseData);
-
       // Update the interview state with the complete updated interview from the backend
       setInterview(responseData);
-      console.log('Interview state updated.', responseData);
 
       // After state is updated, check if the current question is now answered
       const updatedCurrentQuestion = responseData.questions[currentQuestionIndex];
       const isCurrentQuestionAnswered = updatedCurrentQuestion && (updatedCurrentQuestion.answerText !== null || updatedCurrentQuestion.codeAnswer !== null);
-      console.log('Is current question answered after state update?', isCurrentQuestionAnswered);
 
       // Update feedback and score for the current question based on the response
       const submittedQuestion = responseData.questions[currentQuestionIndex];
@@ -395,7 +363,6 @@ export default function InterviewPage() {
       setInterimText('');
 
     } catch (err) {
-      console.error('Error submitting answer:', err);
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setIsGeneratingFeedback(false);
@@ -421,15 +388,25 @@ export default function InterviewPage() {
         router.push('/');
       } else {
         // This case should ideally not be reached if the backend correctly adds a new question until 5 are reached.
-        console.warn('Attempted to move to next question, but none available and interview not complete.');
       }
     }
   };
 
+  const speakAnswer = (text: string) => {
+    if ('speechSynthesis' in window) {
+      const utterance = new window.SpeechSynthesisUtterance(text);
+      window.speechSynthesis.speak(utterance);
+    } else {
+      alert('Text-to-speech is not supported in this browser.');
+    }
+  };
+
+  const [showCodeInfo, setShowCodeInfo] = useState(false);
+
   if (loading && !interview) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white">
-        <p className="text-xl">Loading interview...</p>
+      <div className="min-h-screen bg-white flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-black">
+        <p className="text-xl text-black">Loading interview...</p>
       </div>
     );
   }
@@ -481,313 +458,346 @@ export default function InterviewPage() {
   ];
 
   return (
-    <div className="min-h-screen text-white">
-      {isGeneratingFeedback && <LoadingAnimation />}
-      {isCodingQuestion && currentQuestion ? (
-        <div className="flex-1 flex flex-col md:flex-row md:gap-6 p-4 md:p-8">
-          {/* Left: Coding Problem */}
-          <div className="card w-full md:w-1/2 h-[80vh] flex flex-col p-8 overflow-y-auto">
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center space-x-4">
-                <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 rounded-lg">
-                  Question {currentQuestionIndex + 1} of {interview.questions.length}
-                </h2>
-                {isAnswered ? (
-                  <span className="text-green-500 text-xl font-bold bg-green-900/30 px-4 py-2 rounded-lg flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Answered
-                  </span>
-                ) : (
-                  <span className="text-yellow-500 text-xl font-bold bg-yellow-900/30 px-4 py-2 rounded-lg flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Unanswered
-                  </span>
-                )}
-              </div>
-            </div>
-            <h3 className="text-2xl font-bold mb-6 text-blue-300 border-b border-slate-700 pb-4">Coding Problem</h3>
-            <div className="prose prose-invert max-w-none">
-            {(() => {
-                const questionText = currentQuestion?.questionText?.replace('[CODING_PROBLEM]', '').trim() || '';
-                const parts = questionText.split(/```(\w+)?/);
-                return parts.map((part, index) => {
-                  if (index % 2 === 1) {
-                return (
-                      <pre key={index} className="bg-slate-900/50 p-4 rounded-lg my-4 overflow-x-auto border border-slate-700">
-                        <code className="text-sm text-slate-300">{part}</code>
-                      </pre>
-                    );
-                  }
-                  return <p key={index} className="mb-4 leading-relaxed text-slate-200">{part}</p>;
-                });
-            })()}
-            </div>
-          </div>
-
-          {/* Right: Code Editor */}
-          <div className="card w-full md:w-1/2 h-[80vh] flex flex-col p-8 overflow-y-auto">
-            <label htmlFor="language-select" className="block text-lg font-medium text-slate-300 mb-2">
-              Programming Language:
-            </label>
-            <select
-              id="language-select"
-              name="language-select"
-              className="input mb-6"
-              value={selectedCodingLanguage || interview?.programmingLanguage?.toLowerCase() || ''}
-              disabled
-            >
-              <option value="">{interview?.programmingLanguage || 'Select a language'}</option>
-            </select>
-
-            <div className="flex-1 flex flex-col">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-xl font-semibold text-slate-200">Your Solution</h3>
-                <div className="flex items-center space-x-2">
-                  <button
-                    onClick={submitAnswer}
-                    className="btn btn-secondary text-sm"
-                    title="Submit code"
-                  >
-                    Submit Code
-                  </button>
+    <div className="min-h-screen bg-[#F0F4F8] relative" style={{ backgroundImage: 'url(/background.jpg)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      {/* Overlay to lighten background */}
+      <div className="absolute inset-0 w-full h-full bg-white/70 z-0 pointer-events-none" />
+      <div className="relative z-10 flex flex-col min-h-screen">
+        {isGeneratingFeedback && <LoadingAnimation />}
+        {isCodingQuestion && currentQuestion ? (
+          <div className="flex-1 flex flex-col md:flex-row md:gap-6 p-4 md:p-8">
+            {/* Left: Coding Problem */}
+            <div className="card w-full md:w-1/2 h-[80vh] flex flex-col p-8 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-2xl text-gray-900">
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center space-x-4">
+                  <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 rounded-lg text-white">
+                    Question {currentQuestionIndex + 1} of {interview.questions.length}
+                  </h2>
+                  {isAnswered ? (
+                    <span className="text-green-500 text-xl font-bold bg-green-900/30 px-4 py-2 rounded-lg flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Answered
+                    </span>
+                  ) : (
+                    <span className="text-yellow-500 text-xl font-bold bg-yellow-900/30 px-4 py-2 rounded-lg flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Unanswered
+                    </span>
+                  )}
                 </div>
               </div>
-            <textarea
-              id="answer"
-              name="answer"
-              rows={20}
-                className="input flex-1 font-mono text-base"
-              value={answer}
-              onChange={e => currentQuestion && setAnswer(e.target.value)}
-                placeholder="Write your code here..."
-                disabled={isGeneratingFeedback}
-            />
+              <h3 className="text-2xl font-bold mb-6 text-blue-600 border-b border-slate-700 pb-4">Coding Problem</h3>
+              <div className="prose max-w-none text-gray-800">
+                {(() => {
+                  const questionText = currentQuestion?.questionText?.replace('[CODING_PROBLEM]', '').trim() || '';
+                  const parts = questionText.split(/```(\w+)?/);
+                  return parts.map((part, index) => {
+                    if (index % 2 === 1) {
+                      return (
+                        <pre key={index} className="bg-slate-900/10 p-4 rounded-lg my-4 overflow-x-auto border border-slate-300 text-gray-800">
+                          <code className="text-sm">{part}</code>
+                        </pre>
+                      );
+                    }
+                    return <p key={index} className="mb-4 leading-relaxed">{part}</p>;
+                  });
+                })()}
+              </div>
             </div>
 
-            <div className="mt-6 flex justify-between items-center">
-              <button
-                onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
-                disabled={currentQuestionIndex === 0}
-                className="btn btn-secondary flex items-center gap-2"
+            {/* Right: Code Editor */}
+            <div className="card w-full md:w-1/2 h-[80vh] flex flex-col p-8 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-2xl text-gray-900">
+              <label htmlFor="language-select" className="block text-lg font-medium text-gray-700 mb-2">
+                Programming Language:
+              </label>
+              <select
+                id="language-select"
+                name="language-select"
+                className="input mb-6"
+                value={selectedCodingLanguage || interview?.programmingLanguage?.toLowerCase() || ''}
+                disabled
               >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Previous Question
-              </button>
-              {interview.questions.every(q => q.answerText !== null || q.codeAnswer !== null) ? (
-                <button
-                  onClick={() => router.push('/')}
-                  className="btn btn-primary flex items-center gap-2"
-                >
-                  Finish Interview
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
-              ) : currentQuestionIndex < interview.questions.length - 1 ? (
-                <button
-                  onClick={nextQuestion}
-                  className="btn btn-secondary flex items-center gap-2"
-                >
-                  Next Question
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              ) : (
-                <button
-                  onClick={nextQuestion}
-                  className="btn btn-secondary flex items-center gap-2"
-                >
-                  Next Question
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
-              )}
-            </div>
+                <option value="">{interview?.programmingLanguage || 'Select a language'}</option>
+              </select>
 
-            {/* Feedback and Navigation for Coding Questions */}
-            {isAnswered && (
-              <div className="mt-6 space-y-6">
-                {/* Code Feedback */}
-                {currentQuestion?.codeFeedback && (
-                  <div className="card p-6 bg-purple-900/30 border-purple-700">
-                    <h3 className="text-lg font-medium text-purple-200 mb-4">Code Feedback:</h3>
-                    <p className="text-purple-100 leading-relaxed">{currentQuestion.codeFeedback}</p>
+              <div className="flex-1 flex flex-col">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
+                    Your Solution
+                    <button
+                      type="button"
+                      className="ml-1 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
+                      title="Info"
+                      onClick={() => setShowCodeInfo(true)}
+                      style={{ fontSize: '1rem', lineHeight: 1 }}
+                    >
+                      i
+                    </button>
+                  </h3>
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={submitAnswer}
+                      className="btn btn-secondary text-sm"
+                      title="Submit code"
+                    >
+                      Submit Code
+                    </button>
+                  </div>
+                </div>
+                {showCodeInfo && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-30">
+                    <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full border border-blue-200 relative">
+                      <button
+                        className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+                        onClick={() => setShowCodeInfo(false)}
+                        aria-label="Close"
+                      >
+                        &times;
+                      </button>
+                      <div className="flex items-center mb-3">
+                        <span className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 mr-2 font-bold text-lg">i</span>
+                        <span className="text-lg font-semibold text-blue-700">Tip</span>
+                      </div>
+                      <p className="text-gray-800">You can write both <span className="font-semibold text-blue-600">code</span> and <span className="font-semibold text-blue-600">theory</span> in the same section. The AI will consider each part on its own.<br/><span className='block mt-3 text-green-700 font-semibold'>Don't worry, just do your best and keep going!</span></p>
+                    </div>
                   </div>
                 )}
-
-                {/* General Feedback */}
-                {currentQuestion?.feedback && (
-                  <div className="card p-6 bg-blue-900/30 border-blue-700">
-                    <h3 className="text-lg font-medium text-blue-200 mb-4">General Feedback:</h3>
-                    <p className="text-blue-100 leading-relaxed">{currentQuestion.feedback}</p>
-                  </div>
-                )}
-
-                {/* Score Display */}
-                {(currentQuestion?.codeScore !== null && currentQuestion?.codeScore !== undefined) && (
-                  <div className={`px-6 py-3 rounded-lg font-semibold text-white inline-block ${
-                    currentQuestion.codeScore >= 7 ? 'bg-green-700' : currentQuestion.codeScore >= 4 ? 'bg-yellow-600' : 'bg-red-700'
-                  }`}>
-                    Code Score: {currentQuestion.codeScore}/10
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div className="max-w-3xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
-          <h1 className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
-            {interview.role.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') + ' Interview'}
-            {interview.programmingLanguage && ` - ${interview.programmingLanguage}`}
-          </h1>
-          <div className="card p-8 mb-6">
-            <div className="flex justify-between items-center mb-6">
-              <div className="flex items-center space-x-4">
-                <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 rounded-lg">
-                  Question {currentQuestionIndex + 1} of {interview.questions.length}
-                </h2>
-              {isAnswered ? (
-                  <span className="text-green-500 text-xl font-bold bg-green-900/30 px-4 py-2 rounded-lg flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                    </svg>
-                    Answered
-                  </span>
-              ) : (
-                  <span className="text-yellow-500 text-xl font-bold bg-yellow-900/30 px-4 py-2 rounded-lg flex items-center gap-2">
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Unanswered
-                  </span>
-              )}
-              </div>
-            </div>
-            <div className="prose prose-invert max-w-none">
-              <p className="text-lg leading-relaxed text-slate-200">{currentQuestion?.questionText}</p>
-            </div>
-          </div>
-
-          {/* Answer Input / Display and Navigation Buttons */}
-          <div className="space-y-6">
-          {!isAnswered ? (
-              <div className="card p-6">
-                <h3 className="text-lg font-medium text-slate-300 mb-4">Your Answer:</h3>
                 <textarea
+                  id="answer"
+                  name="answer"
+                  rows={20}
+                  className="input flex-1 font-mono text-base"
                   value={answer}
-                  onChange={(e) => setAnswer(e.target.value)}
-                  className="input min-h-[200px]"
-                  placeholder="Type your answer here..."
+                  onChange={e => currentQuestion && setAnswer(e.target.value)}
+                  placeholder="Write your code here..."
                   disabled={isGeneratingFeedback}
                 />
-                    <button
-                  onClick={submitAnswer}
-                  disabled={isGeneratingFeedback || !answer.trim()}
-                  className={`btn btn-primary mt-4 w-full flex items-center justify-center gap-2 ${
-                    isGeneratingFeedback ? 'opacity-50 cursor-not-allowed' : ''
-                      }`}
-                    >
-                  {isGeneratingFeedback ? (
-                    <>
-                      <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Generating Feedback...
-                    </>
-                  ) : (
-                    'Submit Answer'
-                  )}
-                  </button>
               </div>
-          ) : (
-              <div className="space-y-6">
-                <div className="card p-6">
-                  <h3 className="text-lg font-medium text-slate-300 mb-4">Your Answer:</h3>
-                {currentQuestion?.videoAnswer ? (
-                  <div className="mt-2">
-                    <video 
-                      src={`data:video/webm;base64,${currentQuestion.videoAnswer}`}
-                      controls
-                        className="w-full rounded-lg"
-                    />
-                  </div>
-                ) : (
-                    <p className="mt-2 text-slate-300 leading-relaxed">{currentQuestion?.answerText}</p>
-                )}
-              </div>
-                {currentQuestion?.feedback && (
-                  <div className="card p-6 bg-blue-900/30 border-blue-700">
-                    <h3 className="text-lg font-medium text-blue-200 mb-4">Feedback:</h3>
-                    <p className="text-blue-100 leading-relaxed">{currentQuestion.feedback}</p>
-                </div>
-              )}
-              {(currentQuestion?.score !== null && currentQuestion?.score !== undefined) && (
-                  <div className={`px-6 py-3 rounded-lg font-semibold text-white inline-block ${
-                    currentQuestion.score >= 7 ? 'bg-green-700' : currentQuestion.score >= 4 ? 'bg-yellow-600' : 'bg-red-700'
-                  }`}>
-                    Score: {currentQuestion.score}/10
-                  </div>
-                )}
-                </div>
-              )}
 
-            {/* Navigation Buttons */}
-            <div className="flex justify-between mt-8">
-              <button
-                onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
-                disabled={currentQuestionIndex === 0}
-                className="btn btn-secondary flex items-center gap-2"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                </svg>
-                Previous Question
-              </button>
-              {interview.questions.every(q => q.answerText !== null || q.codeAnswer !== null) ? (
+              <div className="mt-6 flex justify-between items-center">
                 <button
-                  onClick={() => router.push('/')}
-                  className="btn btn-primary flex items-center gap-2"
-                >
-                  Finish Interview
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                  </svg>
-                </button>
-              ) : currentQuestionIndex < interview.questions.length - 1 ? (
-                <button
-                  onClick={nextQuestion}
+                  onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
+                  disabled={currentQuestionIndex === 0}
                   className="btn btn-secondary flex items-center gap-2"
                 >
-                  Next Question
                   <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
+                  Previous Question
                 </button>
-              ) : (
-                <button
-                  onClick={nextQuestion}
-                  className="btn btn-secondary flex items-center gap-2"
-                >
-                  Next Question
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-                  </svg>
-                </button>
+                {interview.questions.every(q => q.answerText !== null || q.codeAnswer !== null) ? (
+                  <button
+                    onClick={() => router.push('/')} 
+                    className="btn btn-primary flex items-center gap-2"
+                  >
+                    Finish Interview
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                ) : currentQuestionIndex < interview.questions.length - 1 ? (
+                  <button
+                    onClick={nextQuestion}
+                    className="btn btn-secondary flex items-center gap-2"
+                  >
+                    Next Question
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    onClick={nextQuestion}
+                    className="btn btn-secondary flex items-center gap-2"
+                  >
+                    Next Question
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+
+              {/* Feedback and Navigation for Coding Questions */}
+              {isAnswered && (
+                <div className="mt-6 space-y-6">
+                  {/* Code Feedback */}
+                  {currentQuestion?.codeFeedback && (
+                    <div className="card p-6 bg-green-50 border border-green-200 rounded-2xl shadow-lg text-green-900">
+                      <h3 className="text-lg font-medium text-green-800 mb-4">Code Feedback:</h3>
+                      <p className="leading-relaxed">{currentQuestion.codeFeedback}</p>
+                    </div>
+                  )}
+
+                  {/* General Feedback */}
+                  {currentQuestion?.feedback && (
+                    <div className="card p-6 bg-blue-50 border border-blue-200 rounded-2xl shadow-lg text-blue-900">
+                      <h3 className="text-lg font-medium text-blue-800 mb-4">General Feedback:</h3>
+                      <p className="leading-relaxed">{currentQuestion.feedback}</p>
+                    </div>
+                  )}
+
+                  {/* Score Display */}
+                  {(currentQuestion?.codeScore !== null && currentQuestion?.codeScore !== undefined) && (
+                    <div className={`px-6 py-3 rounded-lg font-semibold text-white inline-block ${
+                      currentQuestion.codeScore >= 7 ? 'bg-green-700' : currentQuestion.codeScore >= 4 ? 'bg-yellow-600' : 'bg-red-700'
+                    }`}>
+                      Code Score: {currentQuestion.codeScore}/10
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="max-w-3xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
+            <h1 className="text-3xl font-bold text-center mb-8 bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text text-transparent">
+              {interview.role.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ') + ' Interview'}
+              {interview.programmingLanguage && ` - ${interview.programmingLanguage}`}
+            </h1>
+            <div className="card p-8 mb-6 bg-gray-50 border border-slate-200 rounded-2xl shadow-2xl text-gray-900">
+              <div className="flex justify-between items-center mb-6">
+                <div className="flex items-center space-x-4">
+                  <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 rounded-lg text-white">
+                    Question {currentQuestionIndex + 1} of {interview.questions.length}
+                  </h2>
+                  {isAnswered ? (
+                    <span className="text-green-500 text-xl font-bold bg-green-900/30 px-4 py-2 rounded-lg flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Answered
+                    </span>
+                  ) : (
+                    <span className="text-yellow-500 text-xl font-bold bg-yellow-900/30 px-4 py-2 rounded-lg flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Unanswered
+                    </span>
+                  )}
+                </div>
+              </div>
+              <div className="prose max-w-none text-gray-800">
+                <p className="text-lg leading-relaxed">{currentQuestion?.questionText}</p>
+              </div>
+            </div>
+
+            {/* Answer Input / Display and Navigation Buttons */}
+            <div className="space-y-6">
+              {!isCodingQuestion && !isAnswered ? (
+                <div className="card p-6 bg-gray-50 border border-slate-200 rounded-2xl shadow-lg text-gray-900">
+                  <h3 className="text-lg font-medium text-gray-700 mb-4">Your Answer:</h3>
+                  <textarea
+                    value={answer}
+                    onChange={(e) => setAnswer(e.target.value)}
+                    className="input min-h-[200px] text-gray-800"
+                    placeholder="Type your answer here..."
+                    disabled={isGeneratingFeedback}
+                  />
+                  <button
+                    onClick={submitAnswer}
+                    disabled={isGeneratingFeedback || !answer.trim()}
+                    className={`btn btn-primary mt-4 w-full flex items-center justify-center gap-2 ${
+                      isGeneratingFeedback ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {isGeneratingFeedback ? (
+                      <>
+                        <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Generating Feedback...
+                      </>
+                    ) : (
+                      'Submit Answer'
+                    )}
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className="card p-6 bg-gray-50 border border-slate-200 rounded-2xl shadow-lg text-gray-900">
+                    <h3 className="text-lg font-medium text-gray-700 mb-4">Your Answer:</h3>
+                    {currentQuestion?.videoAnswer ? (
+                      <div className="mt-2">
+                        <video
+                          src={`data:video/webm;base64,${currentQuestion.videoAnswer}`}
+                          controls
+                          className="w-full rounded-lg"
+                        />
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-gray-800 leading-relaxed">{currentQuestion?.answerText}</p>
+                    )}
+                  </div>
+                  {currentQuestion?.feedback && (
+                    <div className="card p-6 bg-blue-50 border border-blue-200 rounded-2xl shadow-lg text-blue-900">
+                      <h3 className="text-lg font-medium text-blue-800 mb-4">Feedback:</h3>
+                      <p className="leading-relaxed">{currentQuestion.feedback}</p>
+                    </div>
+                  )}
+                  {(currentQuestion?.score !== null && currentQuestion?.score !== undefined) && (
+                    <div className={`px-6 py-3 rounded-lg font-semibold text-white inline-block ${
+                      currentQuestion.score >= 7 ? 'bg-green-700' : currentQuestion.score >= 4 ? 'bg-yellow-600' : 'bg-red-700'
+                    }`}>
+                      Score: {currentQuestion.score}/10
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Navigation Buttons */}
+              <div className="flex justify-between mt-8">
+                <button
+                  onClick={() => setCurrentQuestionIndex(prev => Math.max(0, prev - 1))}
+                  disabled={currentQuestionIndex === 0}
+                  className="btn btn-secondary flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  </svg>
+                  Previous Question
+                </button>
+                {interview.questions.every(q => q.answerText !== null || q.codeAnswer !== null) ? (
+                  <button
+                    onClick={() => router.push('/')}
+                    className="btn btn-primary flex items-center gap-2"
+                  >
+                    Finish Interview
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                  </button>
+                ) : currentQuestionIndex < interview.questions.length - 1 ? (
+                  <button
+                    onClick={nextQuestion}
+                    className="btn btn-secondary flex items-center gap-2"
+                  >
+                    Next Question
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                ) : (
+                  <button
+                    onClick={nextQuestion}
+                    className="btn btn-secondary flex items-center gap-2"
+                  >
+                    Next Question
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

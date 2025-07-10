@@ -1,143 +1,162 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
-import Navigation from '@/components/Navigation';
-import Link from 'next/link';
-import { motion } from 'framer-motion';
+import React, { useEffect, useState } from 'react';
+// Navigation is already included in the layout, so do not import or render it here
 
-interface UserProfile {
-  _id: string;
-  name: string;
-  email: string;
-  profilePicture?: string;
-}
-
-interface Interview {
-  _id: string;
-  role: string;
-  programmingLanguage?: string;
-  date: string;
-  overallScore?: number;
-}
-
-const ProfilePage = () => {
-  const router = useRouter();
-  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
+export default function ProfilePage() {
+  const [userProfile, setUserProfile] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  // Use the environment variable directly for all backend calls
-  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL;
+  const [totalInterviews, setTotalInterviews] = useState<number | null>(null);
 
   useEffect(() => {
-    const fetchUserProfile = async () => {
+    const fetchProfile = async () => {
       try {
-        const token = localStorage.getItem('token');
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
         if (!token) {
-          router.push('/login');
-          return;
-        }
-
-        if (!backendUrl) {
-          setError('Backend URL is not configured.');
+          setUserProfile(null);
           setLoading(false);
           return;
         }
-
-        const userDataResponse = await fetch(`${backendUrl}/api/auth`, {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'}/api/auth`, {
           headers: {
             'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
           },
         });
-
-        if (!userDataResponse.ok) {
-          if (userDataResponse.status === 401) {
-            localStorage.removeItem('token');
-            router.push('/login');
-            return;
-          }
-          const errorData = await userDataResponse.json();
-          throw new Error(errorData.error || 'Failed to fetch user profile');
+        if (!res.ok) {
+          setUserProfile(null);
+        } else {
+          const data = await res.json();
+          setUserProfile(data);
         }
-
-        const user = await userDataResponse.json();
-        setUserProfile(user);
       } catch (err) {
-        console.error('Error fetching user profile:', err);
-        setError(err instanceof Error ? err.message : 'Failed to fetch user profile');
+        setUserProfile(null);
       } finally {
         setLoading(false);
       }
     };
+    fetchProfile();
+  }, []);
 
-    fetchUserProfile();
-  }, [router, backendUrl]); // Add backendUrl to dependency array
+  useEffect(() => {
+    // Fetch total interviews
+    const fetchTotalInterviews = async () => {
+      try {
+        const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
+        if (!token) return;
+        const res = await fetch(`${process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000'}/api/interviews/user`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setTotalInterviews(Array.isArray(data) ? data.length : (data.total || 0));
+        }
+      } catch {}
+    };
+    fetchTotalInterviews();
+  }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    router.push('/login');
+  useEffect(() => {
+    // Set initial avatar from userProfile or localStorage
+    if (userProfile) {
+      setSelectedAvatar(userProfile.avatar || localStorage.getItem('selectedAvatar') || avatars[0]);
+    }
+  }, [userProfile]);
+
+  const avatars = [
+    '/avatar1.svg',
+    '/avatar2.svg',
+    '/avatar3.svg',
+    '/avatar4.svg',
+  ];
+  const [selectedAvatar, setSelectedAvatar] = useState<string>('');
+  const [showAvatarModal, setShowAvatarModal] = useState(false);
+
+  const handleAvatarSelect = (avatar: string) => {
+    setSelectedAvatar(avatar);
+    localStorage.setItem('selectedAvatar', avatar);
+    setShowAvatarModal(false);
+    // Optionally, update backend with new avatar if API allows
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white">
-        <p className="text-xl">Loading profile...</p>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white">
-        <p className="text-red-500 text-xl mb-4">Error: {error}</p>
-          <button
-          onClick={handleLogout}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-          >
-          Logout
-          </button>
+      <div className="min-h-screen bg-[#F0F4F8] flex flex-col justify-center items-center">
+        <p className="text-xl text-gray-700">Loading profile...</p>
       </div>
     );
   }
 
   if (!userProfile) {
     return (
-      <div className="min-h-screen bg-gray-900 flex flex-col justify-center items-center py-12 sm:px-6 lg:px-8 text-white">
+      <div className="min-h-screen bg-[#F0F4F8] flex flex-col justify-center items-center">
         <p className="text-yellow-500 text-xl mb-4">User profile not found. Please login again.</p>
-        <button
-          onClick={handleLogout}
-          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
-        >
-          Logout
-        </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 text-white py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto">
-          <div className="flex justify-between items-center mb-8">
-          <h1 className="text-3xl font-bold">Welcome, {userProfile.name}!</h1>
-            <button
-              onClick={handleLogout}
-            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
-            >
-              Logout
-            </button>
+    <div className="min-h-screen bg-[#F0F4F8] relative" style={{ backgroundImage: 'url(/background.jpg)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
+      <div className="absolute inset-0 w-full h-full bg-white/70 z-0 pointer-events-none" />
+      <div className="relative z-10">
+        <div className="max-w-3xl mx-auto py-16 px-4 flex flex-col md:flex-row items-center gap-12">
+          <div className="flex-1">
+            <h1 className="text-4xl font-bold mb-4 text-gray-900">
+              Welcome, <span className="text-blue-600">{userProfile.name || userProfile.email}</span>!
+            </h1>
+            <p className="text-lg text-gray-700 mb-8">
+              Practice interviews anytime, get feedback instantly, and boost your confidence with every session.
+            </p>
           </div>
-
-        <div className="bg-gray-800 rounded-lg p-6 mb-8 shadow-lg">
-          <h2 className="text-2xl font-semibold mb-4">User Details</h2>
-          <p className="text-lg">Email: {userProfile.email}</p>
-          {userProfile.profilePicture && (
-            <img src={userProfile.profilePicture} alt="Profile" className="w-24 h-24 rounded-full mt-4" />
+          {userProfile && (
+            <>
+          <div className="flex-1 flex flex-col items-center bg-white rounded-2xl p-8 shadow-lg border border-slate-200">
+              <img
+                  src={selectedAvatar || userProfile.avatar || userProfile.profilePicture || '/logoo.png'}
+                alt="Profile"
+                  className="w-32 h-32 rounded-full mb-4 border-4 border-blue-200 shadow cursor-pointer"
+                  onClick={() => setShowAvatarModal(true)}
+                />
+                {showAvatarModal && (
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+                    <div className="bg-white rounded-2xl p-8 shadow-lg border border-slate-200 relative">
+                      <button
+                        className="absolute top-2 right-2 text-gray-500 hover:text-gray-800 text-2xl font-bold"
+                        onClick={() => setShowAvatarModal(false)}
+                        aria-label="Close"
+                      >
+                        &times;
+                      </button>
+                      <h3 className="text-lg font-semibold text-gray-800 mb-4 text-center">Choose Your Avatar</h3>
+                      <div className="flex gap-6 justify-center">
+                        {avatars.map((avatar) => (
+                          <img
+                            key={avatar}
+                            src={avatar}
+                            alt="Avatar"
+                            className={`w-20 h-20 rounded-full border-4 cursor-pointer transition-all duration-200 ${selectedAvatar === avatar ? 'border-blue-500 scale-110' : 'border-gray-300'}`}
+                            onClick={() => handleAvatarSelect(avatar)}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+            )}
+            <div className="text-center">
+              <h2 className="text-2xl font-semibold mb-2 text-gray-800">User Details</h2>
+              <p className="text-lg text-gray-700">Email: {userProfile.email}</p>
+                  {typeof totalInterviews === 'number' && (
+                    <p className="text-lg text-gray-700 mt-2">Total Interviews: <span className="font-bold">{totalInterviews}</span></p>
+                  )}
+            </div>
+          </div>
+            </>
           )}
         </div>
       </div>
     </div>
   );
-};
-
-export default ProfilePage;
+}
