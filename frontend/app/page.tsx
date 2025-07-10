@@ -260,18 +260,7 @@ const AIInterviewCoach = () => {
             </div>
           </div>
           <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="rememberMe"
-                name="rememberMe"
-                checked={formData.rememberMe}
-                onChange={handleInputChange}
-                className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-              />
-              <label htmlFor="rememberMe" className="ml-2 text-sm text-gray-700">Remember me</label>
-            </div>
-            <Link href="/forgot-password" className="text-sm text-blue-600 hover:underline">Forgot Password?</Link>
+            {/* Removed Remember Me and Forgot Password features */}
           </div>
           <button
             type="submit"
