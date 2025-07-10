@@ -24,7 +24,7 @@ export default function RootLayout({
       <body className={`${inter.variable} font-sans antialiased`}>
         <Navigation />
         <PageTransition>
-          {children}
+        {children}
         </PageTransition>
       </body>
     </html>
