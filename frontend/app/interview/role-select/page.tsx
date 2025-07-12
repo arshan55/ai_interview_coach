@@ -98,7 +98,7 @@ const RoleSelectPage = () => {
     <div className="min-h-screen bg-[#F0F4F8] relative" style={{ backgroundImage: 'url(/background.jpg)', backgroundSize: 'cover', backgroundPosition: 'center' }}>
       <div className="absolute inset-0 w-full h-full bg-white/70 z-0 pointer-events-none" />
       <div className="relative z-10">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-3xl mx-auto min-h-[80vh] flex flex-col justify-start">
           <div className="text-center">
             <h1 className="text-3xl font-extrabold text-black sm:text-4xl">
               Select Your Interview Role
@@ -158,7 +158,7 @@ const RoleSelectPage = () => {
             </div>
           )}
 
-          <div className="mt-8">
+          <div className="mt-8 mb-8">
             <button
               onClick={handleStartInterview}
               className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
