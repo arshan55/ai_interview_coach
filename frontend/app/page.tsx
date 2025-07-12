@@ -280,57 +280,57 @@ const AIInterviewCoach = () => {
     <div className="min-h-screen bg-[#F0F4F8] flex">
       <PatternBackground />
       <div className="flex-1 flex flex-col">
-        <header className="bg-white shadow-md p-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-800">AI Interview Coach</h1>
-          <div className="flex items-center space-x-4">
-            <span className="text-gray-700">Welcome, {localStorage.getItem('email')?.split('@')[0] || 'User'}!</span>
+        <header className="bg-white shadow-md p-3 sm:p-4 flex flex-col sm:flex-row justify-between items-center gap-2 sm:gap-0">
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-800">AI Interview Coach</h1>
+          <div className="flex items-center space-x-2 sm:space-x-4">
+            <span className="text-gray-700 text-sm sm:text-base">Welcome, {localStorage.getItem('email')?.split('@')[0] || 'User'}!</span>
             <button
               onClick={handleLogout}
-              className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold text-sm hover:bg-red-700 transition-colors"
+              className="bg-red-600 text-white px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg font-semibold text-xs sm:text-sm hover:bg-red-700 transition-colors"
             >
               Logout
             </button>
           </div>
         </header>
-        <main className="flex-1 p-8">
-          <h2 className="text-2xl font-bold text-gray-800 mb-6">Dashboard</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div className="bg-white rounded-xl shadow-lg p-6">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-4 sm:mb-6">Dashboard</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm font-medium">Total Interviews</p>
-                  <p className="text-3xl font-bold text-gray-800">{stats?.totalInterviews || 0}</p>
+                  <p className="text-gray-600 text-xs sm:text-sm font-medium">Total Interviews</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-800">{stats?.totalInterviews || 0}</p>
                 </div>
-                <div className="bg-[#3563E9] p-3 rounded-full">
-                  <Calendar className="h-6 w-6 text-white" />
+                <div className="bg-[#3563E9] p-2 sm:p-3 rounded-full">
+                  <Calendar className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm font-medium">Average Score</p>
-                  <p className="text-3xl font-bold text-gray-800">{stats?.averageScore.toFixed(1) || '0.0'}/10</p>
+                  <p className="text-gray-600 text-xs sm:text-sm font-medium">Average Score</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-800">{stats?.averageScore.toFixed(1) || '0.0'}/10</p>
                 </div>
-                <div className="bg-[#2C7A7B] p-3 rounded-full">
-                  <TrendingUp className="h-6 w-6 text-white" />
+                <div className="bg-[#2C7A7B] p-2 sm:p-3 rounded-full">
+                  <TrendingUp className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
                 </div>
               </div>
             </div>
-            <div className="bg-white rounded-xl shadow-lg p-6">
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm font-medium">Best Score</p>
-                  <p className="text-3xl font-bold text-gray-800">{stats?.bestScore || 0}/10</p>
+                  <p className="text-gray-600 text-xs sm:text-sm font-medium">Best Score</p>
+                  <p className="text-2xl sm:text-3xl font-bold text-gray-800">{stats?.bestScore || 0}/10</p>
                 </div>
-                <div className="bg-[#3563E9] p-3 rounded-full">
-                  <Award className="h-6 w-6 text-white" />
+                <div className="bg-[#3563E9] p-2 sm:p-3 rounded-full">
+                  <Award className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
                 </div>
               </div>
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold text-gray-800 mt-8 mb-6">Recent Interviews</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mt-6 sm:mt-8 mb-4 sm:mb-6">Recent Interviews</h2>
           {interviewsLoading ? (
             <p>Loading interviews...</p>
           ) : interviewsError ? (
@@ -338,40 +338,42 @@ const AIInterviewCoach = () => {
           ) : interviews.length === 0 ? (
             <p>No recent interviews. Start a new one!</p>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-3 sm:space-y-4">
               {interviews.map((interview: Interview) => (
-                <div key={interview._id} className="flex items-center justify-between w-full border-b border-gray-300 py-3 px-2 hover:bg-gray-100 transition-colors cursor-pointer text-base">
-                  <div className="flex items-center space-x-3">
+                <div key={interview._id} className="flex flex-col sm:flex-row sm:items-center justify-between w-full border-b border-gray-300 py-3 px-2 hover:bg-gray-100 transition-colors cursor-pointer text-sm sm:text-base gap-2 sm:gap-0">
+                  <div className="flex items-center space-x-2 sm:space-x-3">
                     <div className="bg-[#3563E9] p-1 rounded-full">
-                      <Play className="h-4 w-4 text-white" />
+                      <Play className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
                     </div>
-                    <div>
-                      <p className="font-medium text-gray-800 text-base">{interview.role?.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium text-gray-800 text-sm sm:text-base truncate">{interview.role?.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
+                      <div className="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm text-gray-600">
                         <span className="flex items-center space-x-1">
                           <Calendar className="h-3 w-3" />
-                          <span>{formatDateTime(interview.date)}</span>
+                          <span className="truncate">{formatDateTime(interview.date)}</span>
                         </span>
                       </div>
                     </div>
                   </div>
-                  <div className="text-right min-w-[60px]">
-                    <p className="text-lg font-bold text-gray-800">{interview.overallScore ? interview.overallScore + '/10' : '--'}</p>
+                  <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
+                    <div className="text-right min-w-[50px] sm:min-w-[60px]">
+                      <p className="text-base sm:text-lg font-bold text-gray-800">{interview.overallScore ? interview.overallScore + '/10' : '--'}</p>
                     <p className="text-xs text-gray-600">Score</p>
                   </div>
-                  <div className="flex items-center gap-1 ml-2">
+                    <div className="flex items-center gap-1">
                     <button
                       onClick={(e) => { e.stopPropagation(); router.push(`/interview/${interview._id}`); }}
-                      className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-medium shadow"
+                        className="px-2 py-1 sm:px-3 sm:py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-medium shadow"
                     >
                       View
                     </button>
                     <button
                       onClick={(e) => { e.stopPropagation(); deleteInterview(interview._id); }}
-                      className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-700 text-xs font-medium shadow flex items-center"
+                        className="px-2 py-1 sm:px-3 sm:py-1 bg-red-500 text-white rounded hover:bg-red-700 text-xs font-medium shadow flex items-center"
                     >
                       <Trash2 className="h-3 w-3 mr-0.5" />
                     </button>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -388,12 +390,12 @@ const AIInterviewCoach = () => {
       <div className="absolute inset-0 w-full h-full bg-white/70 z-0 pointer-events-none" />
       <div className="relative z-10 flex flex-col min-h-screen">
         {/* Hero Section - full width */}
-        <section className="w-full relative flex flex-col items-center justify-center py-20 px-4 overflow-hidden">
+        <section className="w-full relative flex flex-col items-center justify-center py-8 sm:py-12 lg:py-20 px-4 overflow-hidden">
           {/* Hero background image */}
           <img src="/background.png" alt=" " className="absolute inset-0 w-full h-full object-cover opacity-10 pointer-events-none z-0" />
-          <div className="max-w-4xl w-full bg-white rounded-2xl shadow-lg p-12 text-left flex flex-col md:flex-row items-center md:items-center gap-10 relative z-10">
-            <div className="flex-1">
-              <h2 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-gray-800 mb-4 leading-tight text-left">
+          <div className="max-w-4xl w-full bg-white rounded-2xl shadow-lg p-4 sm:p-8 lg:p-12 text-left flex flex-col lg:flex-row items-center gap-6 lg:gap-10 relative z-10">
+            <div className="flex-1 text-center lg:text-left">
+              <h2 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-semibold text-gray-800 mb-3 sm:mb-4 leading-tight">
                 <span className="block">
                   Level up your <span className="font-bold text-teal-600">Interview Game</span>
                 </span>
@@ -401,34 +403,34 @@ const AIInterviewCoach = () => {
                   with <span className="font-bold text-teal-600">AI Training Buddy</span>
                 </span>
               </h2>
-              <p className="text-gray-600 text-lg mt-2 text-left">
+              <p className="text-gray-600 text-sm sm:text-base lg:text-lg mt-2 text-center lg:text-left">
                 Practice interviews anytime, get feedback instantly, and boost your confidence with every session.
               </p>
-              <div className="mt-8 flex justify-start">
+              <div className="mt-6 sm:mt-8 flex justify-center lg:justify-start">
                 {isAuthenticated ? (
                   <Link
                     href="/interview/role-select"
-                    className="flex items-center space-x-2 bg-[#3563E9] hover:bg-[#2C7A7B] text-white px-8 py-4 rounded-xl font-semibold text-lg transition-colors shadow-lg"
+                    className="flex items-center space-x-2 bg-[#3563E9] hover:bg-[#2C7A7B] text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-semibold text-sm sm:text-base lg:text-lg transition-colors shadow-lg"
                   >
-                    <Play className="h-5 w-5" />
+                    <Play className="h-4 w-4 sm:h-5 sm:w-5" />
                     <span>Start Interview</span>
                   </Link>
                 ) : (
                   <Link
                     href="/register"
-                    className="flex items-center space-x-2 bg-[#3563E9] hover:bg-[#2C7A7B] text-white px-8 py-4 rounded-xl font-semibold text-lg transition-colors shadow-lg"
+                    className="flex items-center space-x-2 bg-[#3563E9] hover:bg-[#2C7A7B] text-white px-6 py-3 sm:px-8 sm:py-4 rounded-xl font-semibold text-sm sm:text-base lg:text-lg transition-colors shadow-lg"
                   >
                     <span>Get Started</span>
                   </Link>
                 )}
               </div>
             </div>
-            <div className="flex-shrink-0 flex justify-center items-center w-full md:w-auto">
-              <div className="w-72 h-72 flex items-center justify-center overflow-hidden">
+            <div className="flex-shrink-0 flex justify-center items-center w-full lg:w-auto">
+              <div className="w-48 h-48 sm:w-64 sm:h-64 lg:w-72 lg:h-72 flex items-center justify-center overflow-hidden">
                 <img
                   src="/logoo.png"
                   alt="Interview Buddy"
-                  className="w-64 h-64 object-cover rounded-full"
+                  className="w-40 h-40 sm:w-56 sm:h-56 lg:w-64 lg:h-64 object-cover rounded-full"
                 />
               </div>
             </div>
@@ -437,37 +439,39 @@ const AIInterviewCoach = () => {
 
         {/* Stats Cards (if authenticated and stats available) */}
         {isAuthenticated && stats && (
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div className="bg-white rounded-xl shadow-lg p-6">
+          <div className="px-4 sm:px-6 lg:px-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 mb-6 sm:mb-8">
+              <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm font-medium">Total Interviews</p>
-                  <p className="text-3xl font-bold text-gray-800">{stats.totalInterviews}</p>
+                    <p className="text-gray-600 text-xs sm:text-sm font-medium">Total Interviews</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.totalInterviews}</p>
+                  </div>
+                  <div className="bg-[#3563E9] p-2 sm:p-3 rounded-full">
+                    <Calendar className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
                 </div>
-                <div className="bg-[#3563E9] p-3 rounded-full">
-                  <Calendar className="h-6 w-6 text-white" />
                 </div>
               </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm font-medium">Average Score</p>
-                  <p className="text-3xl font-bold text-gray-800">{stats.averageScore.toFixed(1)}/10</p>
+                    <p className="text-gray-600 text-xs sm:text-sm font-medium">Average Score</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.averageScore.toFixed(1)}/10</p>
+                  </div>
+                  <div className="bg-[#2C7A7B] p-2 sm:p-3 rounded-full">
+                    <TrendingUp className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
                 </div>
-                <div className="bg-[#2C7A7B] p-3 rounded-full">
-                  <TrendingUp className="h-6 w-6 text-white" />
                 </div>
               </div>
-            </div>
-            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6 sm:col-span-2 lg:col-span-1">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-gray-600 text-sm font-medium">Best Score</p>
-                  <p className="text-3xl font-bold text-gray-800">{stats.bestScore}/10</p>
+                    <p className="text-gray-600 text-xs sm:text-sm font-medium">Best Score</p>
+                    <p className="text-2xl sm:text-3xl font-bold text-gray-800">{stats.bestScore}/10</p>
+                  </div>
+                  <div className="bg-[#3563E9] p-2 sm:p-3 rounded-full">
+                    <Award className="h-4 w-4 sm:h-6 sm:w-6 text-white" />
                 </div>
-                <div className="bg-[#3563E9] p-3 rounded-full">
-                  <Award className="h-6 w-6 text-white" />
                 </div>
               </div>
             </div>
@@ -476,52 +480,55 @@ const AIInterviewCoach = () => {
 
         {/* Recent Interviews (if authenticated) */}
         {isAuthenticated && interviews && interviews.length > 0 && (
-          <div className="bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Recent Interviews</h3>
-            <div className="space-y-4">
+          <div className="px-4 sm:px-6 lg:px-8 mb-6 sm:mb-8">
+            <div className="bg-white rounded-xl shadow-lg p-4 sm:p-6">
+              <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Recent Interviews</h3>
+              <div className="space-y-3 sm:space-y-4">
               {(() => {
                 const interviewsToShow = showAllInterviews ? interviews : interviews.slice(0, 4);
                 return (
                   <>
                     {interviewsToShow.map((interview: Interview) => (
-                      <div key={interview._id} className="flex items-center justify-between w-full border-b border-gray-300 py-3 px-2 hover:bg-gray-100 transition-colors cursor-pointer text-base">
-                        <div className="flex items-center space-x-3">
+                        <div key={interview._id} className="flex flex-col sm:flex-row sm:items-center justify-between w-full border-b border-gray-300 py-3 px-2 hover:bg-gray-100 transition-colors cursor-pointer text-sm sm:text-base gap-2 sm:gap-0">
+                          <div className="flex items-center space-x-2 sm:space-x-3">
                           <div className="bg-[#3563E9] p-1 rounded-full">
-                            <Play className="h-4 w-4 text-white" />
+                              <Play className="h-3 w-3 sm:h-4 sm:w-4 text-white" />
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-800 text-base">{interview.role?.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
-                            <div className="flex items-center space-x-4 text-sm text-gray-600">
+                            <div className="flex-1 min-w-0">
+                              <p className="font-medium text-gray-800 text-sm sm:text-base truncate">{interview.role?.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}</p>
+                              <div className="flex items-center space-x-2 sm:space-x-4 text-xs sm:text-sm text-gray-600">
                               <span className="flex items-center space-x-1">
                                 <Calendar className="h-3 w-3" />
-                                <span>{formatDateTime(interview.date)}</span>
+                                  <span className="truncate">{formatDateTime(interview.date)}</span>
                               </span>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                        <div className="text-right min-w-[60px]">
-                          <p className="text-lg font-bold text-gray-800">{interview.overallScore ? interview.overallScore + '/10' : '--'}</p>
+                          <div className="flex items-center justify-between sm:justify-end gap-2 sm:gap-4">
+                            <div className="text-right min-w-[50px] sm:min-w-[60px]">
+                              <p className="text-base sm:text-lg font-bold text-gray-800">{interview.overallScore ? interview.overallScore + '/10' : '--'}</p>
                           <p className="text-xs text-gray-600">Score</p>
                         </div>
-                        <div className="flex items-center gap-1 ml-2">
+                            <div className="flex items-center gap-1">
                           <button
                             onClick={(e) => { e.stopPropagation(); router.push(`/interview/${interview._id}`); }}
-                            className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-medium shadow"
+                                className="px-2 py-1 sm:px-3 sm:py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs font-medium shadow"
                           >
                             View
                           </button>
                           <button
                             onClick={(e) => { e.stopPropagation(); deleteInterview(interview._id); }}
-                            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-700 text-xs font-medium shadow flex items-center"
+                                className="px-2 py-1 sm:px-3 sm:py-1 bg-red-500 text-white rounded hover:bg-red-700 text-xs font-medium shadow flex items-center"
                           >
                             <Trash2 className="h-3 w-3 mr-0.5" />
                           </button>
+                            </div>
                         </div>
                       </div>
                     ))}
                     {interviews.length > 4 && !showAllInterviews && (
                       <button
-                        className="mt-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded text-gray-800 font-medium"
+                          className="mt-2 px-3 py-2 sm:px-4 sm:py-2 bg-gray-200 hover:bg-gray-300 rounded text-gray-800 font-medium text-sm sm:text-base"
                         onClick={() => setShowAllInterviews(true)}
                       >
                         More
@@ -529,7 +536,7 @@ const AIInterviewCoach = () => {
                     )}
                     {showAllInterviews && interviews.length > 4 && (
                       <button
-                        className="mt-2 px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded text-gray-800 font-medium"
+                          className="mt-2 px-3 py-2 sm:px-4 sm:py-2 bg-gray-200 hover:bg-gray-300 rounded text-gray-800 font-medium text-sm sm:text-base"
                         onClick={() => setShowAllInterviews(false)}
                       >
                         Show Less
@@ -538,58 +545,84 @@ const AIInterviewCoach = () => {
                   </>
                 );
               })()}
+              </div>
             </div>
           </div>
         )}
         {/* Features Section */}
-        <div id="features" className="w-full flex justify-center">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-2 lg:grid-rows-2 gap-8 gap-y-8 mb-8 max-w-5xl w-full">
-            <div className="bg-blue-200 border-4 border-black p-6 rounded-xl shadow-lg">
-              <div className="w-12 h-12 bg-blue-300 rounded-lg flex items-center justify-center mb-4">
-                <MessageSquare className="w-6 h-6 text-blue-500" />
+        <div id="features" className="w-full flex justify-center px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 lg:gap-8 mb-6 sm:mb-8 max-w-5xl w-full">
+            <div className="bg-blue-200 border-4 border-black p-4 sm:p-6 rounded-xl shadow-lg">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-blue-300 rounded-lg flex items-center justify-center mb-3 sm:mb-4">
+                <MessageSquare className="w-5 h-5 sm:w-6 sm:h-6 text-blue-500" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Realistic Questions</h3>
-              <p className="text-gray-700">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-3">Realistic Questions</h3>
+              <p className="text-gray-700 text-sm sm:text-base">
                 Practice with AI-powered questions tailored to your field and experience level.
               </p>
             </div>
-            <div className="bg-green-200 border-4 border-black p-6 rounded-xl shadow-lg">
-              <div className="w-12 h-12 bg-green-300 rounded-lg flex items-center justify-center mb-4">
-                <Target className="w-6 h-6 text-green-500" />
+            <div className="bg-green-200 border-4 border-black p-4 sm:p-6 rounded-xl shadow-lg">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-green-300 rounded-lg flex items-center justify-center mb-3 sm:mb-4">
+                <Target className="w-5 h-5 sm:w-6 sm:h-6 text-green-500" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Personalized Feedback</h3>
-              <p className="text-gray-700">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-3">Personalized Feedback</h3>
+              <p className="text-gray-700 text-sm sm:text-base">
                 Receive instant, actionable feedback to help you improve after every session.
               </p>
             </div>
-            <div className="bg-yellow-200 border-4 border-black p-6 rounded-xl shadow-lg">
-              <div className="w-12 h-12 bg-yellow-300 rounded-lg flex items-center justify-center mb-4">
-                <Award className="w-6 h-6 text-yellow-500" />
+            <div className="bg-yellow-200 border-4 border-black p-4 sm:p-6 rounded-xl shadow-lg">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-yellow-300 rounded-lg flex items-center justify-center mb-3 sm:mb-4">
+                <Award className="w-5 h-5 sm:w-6 sm:h-6 text-yellow-500" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Track Progress</h3>
-              <p className="text-gray-700">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-3">Track Progress</h3>
+              <p className="text-gray-700 text-sm sm:text-base">
                 Monitor your growth with detailed stats and see how you stack up over time.
               </p>
             </div>
-            <div className="bg-purple-200 border-4 border-black p-6 rounded-xl shadow-lg">
-              <div className="w-12 h-12 bg-purple-300 rounded-lg flex items-center justify-center mb-4">
-                <User className="w-6 h-6 text-purple-500" />
+            <div className="bg-purple-200 border-4 border-black p-4 sm:p-6 rounded-xl shadow-lg">
+              <div className="w-10 h-10 sm:w-12 sm:h-12 bg-purple-300 rounded-lg flex items-center justify-center mb-3 sm:mb-4">
+                <User className="w-5 h-5 sm:w-6 sm:h-6 text-purple-500" />
               </div>
-              <h3 className="text-xl font-semibold text-gray-800 mb-3">Flexible Practice</h3>
-              <p className="text-gray-700">
+              <h3 className="text-lg sm:text-xl font-semibold text-gray-800 mb-2 sm:mb-3">Flexible Practice</h3>
+              <p className="text-gray-700 text-sm sm:text-base">
                 Practice anytime, anywhere, and tailor your sessions to your schedule and needs.
               </p>
             </div>
           </div>
         </div>
         {/* About Us Footer */}
-        <footer id="about-footer" className="bg-[#D9E2EC] border-t border-slate-300 py-8 mt-12 w-full">
-          <div className="max-w-4xl mx-auto px-4 text-center">
-            <h2 className="text-2xl font-bold text-slate-800 mb-2">About Us</h2>
-            <p className="text-slate-700 mb-4">
-              AI Interview Coach is dedicated to helping you master your interview skills with personalized, AI-powered practice and feedback. Our mission is to make interview preparation accessible, effective, and confidence-boosting for everyone.
-            </p>
-            <div className="text-slate-500 text-sm">&copy; {new Date().getFullYear()} AI Interview Coach. All rights reserved.</div>
+        <footer id="about-footer" className="bg-[#D9E2EC] border-t border-slate-300 py-6 sm:py-8 mt-8 sm:mt-12 w-full">
+          <div className="max-w-4xl mx-auto px-4 flex flex-col md:flex-row justify-between items-stretch gap-0 md:gap-0 text-center md:text-left">
+            <div className="flex-1 flex flex-col justify-center md:pr-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-800 mb-2">About Us</h2>
+              <p className="text-slate-700 mb-0 text-sm sm:text-base">
+                AI Interview Coach is dedicated to helping you master your interview skills with personalized, AI-powered practice and feedback. Our mission is to make interview preparation accessible, effective, and confidence-boosting for everyone.
+              </p>
+            </div>
+            <div className="hidden md:block w-px bg-slate-400 mx-6 my-4" />
+            <div className="flex-1 flex flex-col justify-center items-center md:items-start mt-8 md:mt-0">
+              <div className="bg-white/80 rounded-xl shadow p-4 w-full max-w-xs mx-auto flex flex-col items-center">
+                <h3 className="text-lg font-semibold text-slate-800 mb-3 text-center md:text-left">Contact Us</h3>
+                <div className="flex flex-wrap justify-center md:justify-start gap-3">
+                  <a href="https://www.linkedin.com/in/gursheel-rakhra-450a92310?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-700 hover:underline text-base font-medium">
+                    <svg xmlns='http://www.w3.org/2000/svg' className='w-6 h-6' fill='currentColor' viewBox='0 0 24 24'><path d='M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.761 0 5-2.239 5-5v-14c0-2.761-2.239-5-5-5zm-11 19h-3v-10h3v10zm-1.5-11.268c-.966 0-1.75-.784-1.75-1.75s.784-1.75 1.75-1.75 1.75.784 1.75 1.75-.784 1.75-1.75 1.75zm15.5 11.268h-3v-5.604c0-1.337-.025-3.063-1.868-3.063-1.868 0-2.154 1.459-2.154 2.967v5.7h-3v-10h2.881v1.367h.041c.401-.761 1.379-1.563 2.841-1.563 3.039 0 3.6 2.001 3.6 4.601v5.595z'/></svg>
+                    Gursheel Rakhra
+                  </a>
+                  <a href="https://www.linkedin.com/in/kunal-pratap-singh-80b002310/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-700 hover:underline text-base font-medium">
+                    <svg xmlns='http://www.w3.org/2000/svg' className='w-6 h-6' fill='currentColor' viewBox='0 0 24 24'><path d='M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.761 0 5-2.239 5-5v-14c0-2.761-2.239-5-5-5zm-11 19h-3v-10h3v10zm-1.5-11.268c-.966 0-1.75-.784-1.75-1.75s.784-1.75 1.75-1.75 1.75.784 1.75 1.75-.784 1.75-1.75 1.75zm15.5 11.268h-3v-5.604c0-1.337-.025-3.063-1.868-3.063-1.868 0-2.154 1.459-2.154 2.967v5.7h-3v-10h2.881v1.367h.041c.401-.761 1.379-1.563 2.841-1.563 3.039 0 3.6 2.001 3.6 4.601v5.595z'/></svg>
+                    Kunal Pratap Singh
+                  </a>
+                  <a href="https://www.linkedin.com/in/anusha-agrawal-668b90276?utm_source=share&utm_campaign=share_via&utm_content=profile&utm_medium=android_app" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-700 hover:underline text-base font-medium">
+                    <svg xmlns='http://www.w3.org/2000/svg' className='w-6 h-6' fill='currentColor' viewBox='0 0 24 24'><path d='M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.761 0 5-2.239 5-5v-14c0-2.761-2.239-5-5-5zm-11 19h-3v-10h3v10zm-1.5-11.268c-.966 0-1.75-.784-1.75-1.75s.784-1.75 1.75-1.75 1.75.784 1.75 1.75-.784 1.75-1.75 1.75zm15.5 11.268h-3v-5.604c0-1.337-.025-3.063-1.868-3.063-1.868 0-2.154 1.459-2.154 2.967v5.7h-3v-10h2.881v1.367h.041c.401-.761 1.379-1.563 2.841-1.563 3.039 0 3.6 2.001 3.6 4.601v5.595z'/></svg>
+                    Anusha Agrawal
+                  </a>
+                  <a href="https://www.linkedin.com/in/arshan-khan-b32760306" target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-blue-700 hover:underline text-base font-medium">
+                    <svg xmlns='http://www.w3.org/2000/svg' className='w-6 h-6' fill='currentColor' viewBox='0 0 24 24'><path d='M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.761 0 5-2.239 5-5v-14c0-2.761-2.239-5-5-5zm-11 19h-3v-10h3v10zm-1.5-11.268c-.966 0-1.75-.784-1.75-1.75s.784-1.75 1.75-1.75 1.75.784 1.75 1.75-.784 1.75-1.75 1.75zm15.5 11.268h-3v-5.604c0-1.337-.025-3.063-1.868-3.063-1.868 0-2.154 1.459-2.154 2.967v5.7h-3v-10h2.881v1.367h.041c.401-.761 1.379-1.563 2.841-1.563 3.039 0 3.6 2.001 3.6 4.601v5.595z'/></svg>
+                    Arshan Khan
+                  </a>
+                </div>
+              </div>
+            </div>
           </div>
         </footer>
       </div>
