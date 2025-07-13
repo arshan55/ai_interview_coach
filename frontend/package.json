@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@prisma/client": "^5.10.2",
     "@tailwindcss/typography": "^0.5.16",
     "axios": "^1.6.7",

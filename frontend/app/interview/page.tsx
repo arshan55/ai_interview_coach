@@ -509,7 +509,7 @@ export default function InterviewPage() {
             </div>
 
             {/* Right: Code Editor */}
-            <div className="question-card w-full md:w-1/2 h-[80vh] flex flex-col p-8 overflow-y-auto">
+            <div className="card w-full md:w-1/2 h-[80vh] flex flex-col p-8 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-2xl text-white-900">
               <label htmlFor="language-select" className="block text-lg font-medium text-white-700 mb-2">
                 Programming Language:
               </label>
