@@ -21,6 +21,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <link rel="icon" href="/robotic-hand.png" type="image/png" />
       <body className={`${inter.variable} font-sans antialiased`}>
         <Navigation />
         <PageTransition>

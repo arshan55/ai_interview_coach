@@ -466,7 +466,7 @@ export default function InterviewPage() {
         {isCodingQuestion && currentQuestion ? (
           <div className="flex-1 flex flex-col md:flex-row md:gap-6 p-4 md:p-8">
             {/* Left: Coding Problem */}
-            <div className="card w-full md:w-1/2 h-[80vh] flex flex-col p-8 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-2xl text-gray-900">
+            <div className="card w-full md:w-1/2 h-[80vh] flex flex-col p-8 overflow-y-auto bg-white border border-white-200 rounded-2xl shadow-2xl text-white-900">
               <div className="flex justify-between items-center mb-6">
                 <div className="flex items-center space-x-4">
                   <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 rounded-lg text-white">
@@ -509,8 +509,8 @@ export default function InterviewPage() {
             </div>
 
             {/* Right: Code Editor */}
-            <div className="card w-full md:w-1/2 h-[80vh] flex flex-col p-8 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-2xl text-gray-900">
-              <label htmlFor="language-select" className="block text-lg font-medium text-gray-700 mb-2">
+            <div className="question-card w-full md:w-1/2 h-[80vh] flex flex-col p-8 overflow-y-auto">
+              <label htmlFor="language-select" className="block text-lg font-medium text-white-700 mb-2">
                 Programming Language:
               </label>
               <select
