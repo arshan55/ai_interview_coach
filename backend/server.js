@@ -8,6 +8,14 @@ connectDB();
 
 const app = express();
 
+// Set timeout for all requests
+app.use((req, res, next) => {
+  // Set timeout for all requests to 30 seconds
+  req.setTimeout(30000);
+  res.setTimeout(30000);
+  next();
+});
+
 // Init Middleware
 app.use(express.json({ extended: false, limit: '50mb' }));
 app.use(cors({
@@ -16,6 +24,21 @@ app.use(cors({
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
+
+// Add error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({ error: 'Internal server error', details: err.message });
+});
+
+// Add timeout error handling
+app.use((req, res, next) => {
+  req.on('timeout', () => {
+    console.error('Request timeout for:', req.url);
+    res.status(408).json({ error: 'Request timeout' });
+  });
+  next();
+});
 
 app.get('/', (req, res) => res.send('API Running'));
 
@@ -26,4 +49,21 @@ app.use('/api/interviews', require('./routes/api/interviews'));
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => console.log(`Server started on port ${PORT}`)); 
+const server = app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
+
+// Set server timeout
+server.timeout = 30000; // 30 seconds
+
+// Handle server errors
+server.on('error', (err) => {
+  console.error('Server error:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+}); 

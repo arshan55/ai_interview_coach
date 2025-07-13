@@ -16,6 +16,27 @@ export const runtime = 'edge';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
 
+// Timeout configuration
+const TIMEOUT_MS = 30000; // 30 seconds
+
+// Helper function to create fetch with timeout
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number = TIMEOUT_MS) {
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(timeoutId);
+    return response;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    throw error;
+  }
+}
+
 export async function GET(request: Request) {
   try {
     console.log('Google callback received');
@@ -28,8 +49,8 @@ export async function GET(request: Request) {
     }
 
     console.log('Exchanging code for tokens...');
-    // Exchange the code for tokens
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    // Exchange the code for tokens with timeout
+    const tokenResponse = await fetchWithTimeout('https://oauth2.googleapis.com/token', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -41,7 +62,7 @@ export async function GET(request: Request) {
         redirect_uri: REDIRECT_URI,
         grant_type: 'authorization_code',
       }),
-    });
+    }, 15000); // 15 second timeout for Google OAuth
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
@@ -52,13 +73,13 @@ export async function GET(request: Request) {
     const tokens = await tokenResponse.json();
     console.log('Successfully exchanged code for tokens');
 
-    // Get user info
+    // Get user info with timeout
     console.log('Fetching user info from Google...');
-    const userResponse = await fetch('https://www.googleapis.com/oauth2/v2/userinfo', {
+    const userResponse = await fetchWithTimeout('https://www.googleapis.com/oauth2/v2/userinfo', {
       headers: {
         Authorization: `Bearer ${tokens.access_token}`,
       },
-    });
+    }, 10000); // 10 second timeout for user info
 
     if (!userResponse.ok) {
       const errorText = await userResponse.text();
@@ -69,9 +90,9 @@ export async function GET(request: Request) {
     const userData = await userResponse.json();
     console.log('Successfully fetched user info:', userData.email);
 
-    // Create or update user in our backend
+    // Create or update user in our backend with timeout
     console.log('Creating/updating user in backend...');
-    const backendResponse = await fetch(`${BACKEND_URL}/api/auth/google/user`, {
+    const backendResponse = await fetchWithTimeout(`${BACKEND_URL}/api/auth/google/user`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -82,7 +103,7 @@ export async function GET(request: Request) {
         picture: userData.picture,
         googleId: userData.id,
       }),
-    });
+    }, 20000); // 20 second timeout for backend
 
     if (!backendResponse.ok) {
       const errorText = await backendResponse.text();
@@ -92,17 +113,6 @@ export async function GET(request: Request) {
 
     const { token } = await backendResponse.json();
     console.log('Successfully created/updated user and got token');
-
-    // Remove server-side redirect to ensure client-side script executes
-    // const response = NextResponse.redirect(new URL('/', request.url));
-    
-    // Set the token in a cookie (optional, but good for SSR/security)
-    // response.cookies.set('token', token, {
-    //   httpOnly: true,
-    //   secure: process.env.NODE_ENV === 'production',
-    //   sameSite: 'lax',
-    //   maxAge: 60 * 60 * 24 * 7, // 1 week
-    // });
 
     // Add a script to set the token in localStorage and then redirect
     const html = `
@@ -123,6 +133,12 @@ export async function GET(request: Request) {
     });
   } catch (error) {
     console.error('Error in Google callback:', error);
+    
+    // Handle specific timeout errors
+    if (error instanceof Error && error.name === 'AbortError') {
+      return NextResponse.redirect(new URL('/login?error=Request timeout - please try again', request.url));
+    }
+    
     return NextResponse.redirect(new URL('/login?error=Internal server error', request.url));
   }
 } 

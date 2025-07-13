@@ -152,19 +152,39 @@ router.post('/register', async (req, res) => {
 // @desc    Create or update user from Google OAuth
 // @access  Public
 router.post('/google/user', async (req, res) => {
+  // Set timeout for this specific route
+  req.setTimeout(25000); // 25 seconds
+  
   try {
     const { email, name, picture, googleId } = req.body;
     console.log('POST /api/auth/google/user: Google OAuth login attempt for email:', email);
 
-    // Check if user exists
-    let user = await User.findOne({ email });
+    // Validate required fields
+    if (!email) {
+      console.error('POST /api/auth/google/user: Missing email');
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    // Check if user exists with timeout handling
+    let user;
+    try {
+      user = await User.findOne({ email }).maxTimeMS(10000); // 10 second timeout for DB query
+    } catch (dbError) {
+      console.error('POST /api/auth/google/user: Database query timeout:', dbError);
+      return res.status(408).json({ error: 'Database query timeout' });
+    }
 
     if (user) {
       // Update existing user's Google info
       user.googleId = googleId;
       user.picture = picture;
-      await user.save();
-      console.log('POST /api/auth/google/user: Updated existing user with Google info:', email);
+      try {
+        await user.save();
+        console.log('POST /api/auth/google/user: Updated existing user with Google info:', email);
+      } catch (saveError) {
+        console.error('POST /api/auth/google/user: Failed to save user:', saveError);
+        return res.status(500).json({ error: 'Failed to update user' });
+      }
     } else {
       // Create new user
       user = new User({
@@ -174,8 +194,13 @@ router.post('/google/user', async (req, res) => {
         picture,
         password: await bcrypt.hash(Math.random().toString(36), 10) // Random password for Google users
       });
-      await user.save();
-      console.log('POST /api/auth/google/user: Created new user from Google:', email);
+      try {
+        await user.save();
+        console.log('POST /api/auth/google/user: Created new user from Google:', email);
+      } catch (saveError) {
+        console.error('POST /api/auth/google/user: Failed to save new user:', saveError);
+        return res.status(500).json({ error: 'Failed to create user' });
+      }
     }
 
     // Create JWT token
