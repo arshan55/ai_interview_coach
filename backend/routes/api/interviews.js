@@ -121,6 +121,7 @@ const generatePrompt = (interview) => {
           * Market sizing
           * Revenue models
       * Make sure to vary the scenario and context each time
+      * never ask coding questions for product manager role
     
     Make sure the first question is relevant to the role and demonstrates the candidate's expertise.
     Use wide variety of first questions to keep interviews fresh every time.
