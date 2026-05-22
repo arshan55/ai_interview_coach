@@ -1,7 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  swcMinify: true,
   // Removed rewrites as they can interfere with Vercel API routes
   // async rewrites() {
   //   return [

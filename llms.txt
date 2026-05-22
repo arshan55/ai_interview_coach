@@ -1,0 +1,37 @@
+# AI Interview Coach Project Map
+
+## Agent rule — root docs
+Do not edit **`AGENTS.md`**, **`llms.txt`**, or **`skills.md`** unless the user explicitly requests updates to those files.
+
+```text
+ROOT_DOCS_EDIT: Do not modify AGENTS.md, llms.txt, or skills.md unless the user explicitly asks you to update those files (or one of them). Routine code or config changes do not imply permission to touch these three.
+```
+
+Related: **`AGENTS.md`** (guardrails, stack), **`skills.md`** (install + run commands), **`README.md`** (human-oriented setup).
+
+## Project Structure
+- `frontend/` - Next.js 14 Application (App Router, Tailwind CSS, Framer Motion)
+  - `app/` - Next.js pages, layouts, and API routes
+  - `components/` - Reusable UI components
+  - `lib/` - Shared utilities and helpers
+  - `services/` - External API integration and business logic
+  - `prisma/` - Prisma schema and database migrations
+  - `public/` - Static assets
+  - `next.config.js` - Next.js configuration
+  - `tailwind.config.js` - Tailwind CSS configuration
+- `backend/` - Node.js/Express Application
+  - `routes/` - Express route handlers
+  - `models/` - Mongoose database schemas
+  - `middleware/` - Express middleware (Auth, error handling)
+  - `config/` - Backend configuration
+  - `server.js` - Express application entry point
+- `app/` - Auxiliary root-level Next-style snippets (legacy or experimental); primary app is `frontend/`
+- Root `package.json` - Shared/loose dependencies; main app scripts live in `frontend/package.json` and `backend/package.json`
+- `requirements.txt` - Optional Python/pip deps only (app runtime is Node/npm); see file header
+
+## Key Architectural Patterns
+- **Frontend State Management**: React Context & Hooks.
+- **Backend API**: RESTful architecture.
+- **Authentication**: JWT-based auth and Google OAuth.
+- **Database**: MongoDB with Mongoose (backend persistence for users/interviews). Prisma in `frontend/prisma/` targets PostgreSQL (`DATABASE_URL`) for the Prisma `User` model — confirm which path is authoritative when changing auth or user storage.
+- **BFF / proxy**: Next.js `app/api/*` routes often forward to the Express backend; set `NEXT_PUBLIC_BACKEND_URL` to match the backend `PORT` (default 5000 in backend; align with any fallback in route handlers).

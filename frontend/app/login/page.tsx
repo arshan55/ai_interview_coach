@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { isDevLoginEnabled } from '@/lib/devAuth';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -38,6 +39,27 @@ export default function LoginPage() {
 
   const handleGoogleSignIn = () => {
     window.location.href = '/api/auth/google';
+  };
+
+  const handleDevLogin = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      const response = await fetch('/api/auth/dev-login', { method: 'POST' });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'Dev login failed');
+      }
+      if (!data.token) {
+        throw new Error('No token received');
+      }
+      localStorage.setItem('token', data.token);
+      router.push('/');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Dev login failed');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -119,6 +141,32 @@ export default function LoginPage() {
               <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" className="w-5 h-5" />
               <span className="font-medium">Continue with Google</span>
             </button>
+
+            {isDevLoginEnabled && (
+              <>
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-amber-300" />
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-white text-amber-700 font-medium">Development only</span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleDevLogin}
+                  disabled={loading}
+                  className={`w-full border-2 border-dashed border-amber-400 bg-amber-50 text-amber-900 py-3 rounded-lg font-semibold hover:bg-amber-100 transition-all duration-200 ${
+                    loading ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
+                >
+                  {loading ? 'Signing in...' : 'Dev login (skip auth)'}
+                </button>
+                <p className="text-xs text-amber-700/80 text-center mt-2">
+                  Not included in production — set ENABLE_DEV_LOGIN only locally.
+                </p>
+              </>
+            )}
             
             <div className="text-center mt-6 text-sm text-gray-600">
               Don&apos;t have an account?{' '}

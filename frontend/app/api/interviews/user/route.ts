@@ -10,7 +10,7 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
 
 export async function GET() {
   try {
-    const headersList = headers();
+    const headersList = await headers();
     const authHeader = headersList.get('authorization');
 
     console.log('Backend URL:', BACKEND_URL);

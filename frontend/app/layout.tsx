@@ -20,7 +20,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="en" style={{ colorScheme: 'light' }}>
       <link rel="icon" href="/robotic-hand.png" type="image/png" />
       <body className={`${inter.variable} font-sans antialiased`}>
         <Navigation />

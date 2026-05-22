@@ -2,19 +2,21 @@ import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 
 export const dynamic = 'force-dynamic';
-export const runtime = 'edge';
 export const fetchCache = 'force-no-store';
 export const revalidate = 0;
 
-const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  process.env.BACKEND_URL ||
+  'http://localhost:5000';
 
 export async function POST(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
-    const headersList = headers();
+    const { id } = await params;
+    const headersList = await headers();
     const authHeader = headersList.get('authorization');
 
     if (!authHeader) {

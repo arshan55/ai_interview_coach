@@ -1,9 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import ReactMarkdown from 'react-markdown';
+import {
+  VIDEO_ANSWER_PLACEHOLDER,
+  isVideoAnswerPlaceholder,
+} from '@/lib/interviewConstants';
 
 interface Question {
   questionText: string;
@@ -39,7 +43,9 @@ const staggerContainer = {
   }
 };
 
-export default function InterviewDetailsPage({ params }: { params: { id: string } }) {
+export default function InterviewDetailsPage() {
+  const params = useParams();
+  const id = typeof params?.id === 'string' ? params.id : '';
   const [interview, setInterview] = useState<Interview | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +53,11 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
   const router = useRouter();
 
   useEffect(() => {
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+
     const fetchInterview = async () => {
       try {
         const token = localStorage.getItem('token');
@@ -55,7 +66,7 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
           return;
         }
 
-        const response = await fetch(`/api/interviews/${params.id}`, {
+        const response = await fetch(`/api/interviews/${id}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -78,7 +89,7 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
     };
 
     fetchInterview();
-  }, [params.id, router]);
+  }, [id, router]);
 
   const formatDateTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -331,7 +342,14 @@ export default function InterviewDetailsPage({ params }: { params: { id: string 
                     <ReactMarkdown>{question.questionText}</ReactMarkdown>
                   </div>
 
-                  {question.answerText && (
+                  {isVideoAnswerPlaceholder(question.answerText) && (
+                    <div className="mt-4 bg-blue-50 p-4 rounded-lg">
+                      <h3 className="text-lg font-semibold mb-2 text-blue-800">Your Video Answer</h3>
+                      <p className="text-gray-600 italic">{VIDEO_ANSWER_PLACEHOLDER}</p>
+                    </div>
+                  )}
+
+                  {question.answerText && !isVideoAnswerPlaceholder(question.answerText) && (
                     <div className="mt-4 bg-blue-50 p-4 rounded-lg">
                       <h3 className="text-lg font-semibold mb-2 text-blue-800">Your Answer</h3>
                       <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">{question.answerText}</p>

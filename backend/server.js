@@ -11,8 +11,8 @@ const app = express();
 // Set timeout for all requests
 app.use((req, res, next) => {
   // Set timeout for all requests to 30 seconds
-  req.setTimeout(30000);
-  res.setTimeout(30000);
+  req.setTimeout(120000);
+  res.setTimeout(120000);
   next();
 });
 
@@ -52,7 +52,7 @@ const PORT = process.env.PORT || 5000;
 const server = app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
 
 // Set server timeout
-server.timeout = 30000; // 30 seconds
+server.timeout = 120000; // 120 seconds (video answer + AI evaluation)
 
 // Handle server errors
 server.on('error', (err) => {

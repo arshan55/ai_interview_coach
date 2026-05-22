@@ -8,9 +8,19 @@ const Interview = require('../../models/Interview');
 const User = require('../../models/User'); // Add User model import
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-// Initialize Gemini API
-const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' }); // Changed model from 'gemini-1.0-pro' to 'gemini-2.0-flash' based on documentation
+// Gemini — override with GOOGLE_AI_MODEL in .env (e.g. gemini-2.5-flash, gemini-1.5-flash)
+const GEMINI_MODEL = process.env.GOOGLE_AI_MODEL || 'gemini-2.5-flash';
+
+const getGeminiModel = () => {
+  if (!process.env.GOOGLE_AI_API_KEY) {
+    throw new Error('GOOGLE_AI_API_KEY is not configured');
+  }
+  return new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY).getGenerativeModel({
+    model: GEMINI_MODEL,
+  });
+};
+
+console.log(`Interviews route using Gemini model: ${GEMINI_MODEL}`);
 
 // Helper function to generate prompt from interview history
 const generatePrompt = (interview) => {
@@ -131,23 +141,216 @@ const generatePrompt = (interview) => {
   return prompt;
 };
 
-// Helper function for retrying AI calls
+const isQuotaOrRateLimitError = (error) =>
+  error?.status === 429 ||
+  error?.status === 503 ||
+  /429|quota|rate.?limit|too many requests/i.test(String(error?.message || ''));
+
+const getRetryDelayMs = (error, baseDelay) => {
+  const match = String(error?.message || '').match(/retry in (\d+(?:\.\d+)?)s/i);
+  if (match) return Math.ceil(parseFloat(match[1]) * 1000) + 500;
+  return baseDelay;
+};
+
+// Helper function for retrying AI calls (503 overload + 429 quota)
 const retryGenerateContent = async (prompt, retries = 5, delay = 2000) => {
   for (let i = 0; i < retries; i++) {
     try {
-      const result = await model.generateContent(prompt);
+      const result = await getGeminiModel().generateContent(prompt);
       return result;
     } catch (error) {
-      if (error.status === 503 && i < retries - 1) {
-        console.warn(`AI model overloaded (503). Retrying in ${delay}ms... (Attempt ${i + 1}/${retries})`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        delay *= 2; // Exponential backoff
+      const retryable = isQuotaOrRateLimitError(error);
+      if (retryable && i < retries - 1) {
+        const waitMs = getRetryDelayMs(error, delay);
+        console.warn(
+          `Gemini ${error?.status || 'rate limit'} on ${GEMINI_MODEL}. Retrying in ${waitMs}ms... (${i + 1}/${retries})`
+        );
+        await new Promise((resolve) => setTimeout(resolve, waitMs));
+        delay *= 2;
       } else {
-        throw error; // Rethrow other errors or the last 503 error
+        throw error;
       }
     }
   }
-  throw new Error(`AI model remains overloaded after ${retries} retries.`);
+  throw new Error(`AI model remains unavailable after ${retries} retries.`);
+};
+
+const getDevFallbackQuestionTexts = (role) => {
+  const roleLabel = role.replace(/-/g, ' ');
+  const common = [
+    `Tell me about yourself and why you are interested in this ${roleLabel} role.`,
+    `Describe a challenging project you worked on and how you handled obstacles.`,
+    `How do you stay current with trends and tools in ${roleLabel}?`,
+    `Tell me about a time you disagreed with a teammate. How did you resolve it?`,
+    `What questions do you have for us about this role and team?`,
+  ];
+  const technical = [
+    `Explain the difference between REST and GraphQL. When would you choose each?`,
+    `[CODING_PROBLEM] Write a function to detect if a string has balanced brackets ( ), [ ], { }. Explain your approach.`,
+    `How would you design a rate limiter for a public API?`,
+    `Describe how you would debug a slow database query in production.`,
+    `What trade-offs do you consider when choosing SQL vs NoSQL?`,
+  ];
+  const techRoles = new Set([
+    'software-engineer',
+    'frontend-developer',
+    'backend-developer',
+    'data-scientist',
+    'devops-engineer',
+  ]);
+  return techRoles.has(role) ? technical : common;
+};
+
+const createDevFallbackInterview = async (userId, role, programmingLanguage) => {
+  const questionTexts = getDevFallbackQuestionTexts(role);
+  const questions = questionTexts.map((questionText, index) => ({
+    questionText,
+    answerText: null,
+    feedback:
+      index === 0
+        ? 'Practice mode: Gemini quota is unavailable, so these are built-in questions. Set GOOGLE_AI_MODEL or enable billing on your API key for live AI.'
+        : null,
+    score: null,
+    codeAnswer: null,
+    programmingLanguage: null,
+    codeFeedback: null,
+    codeScore: null,
+    audioAnswer: null,
+  }));
+
+  const interview = new Interview({
+    user: userId,
+    role,
+    programmingLanguage: programmingLanguage || undefined,
+    questions,
+    date: new Date(),
+  });
+  await interview.save();
+  await User.findByIdAndUpdate(userId, { $push: { interviews: interview._id } }, { new: true });
+  return interview;
+};
+
+const VIDEO_ANSWER_PLACEHOLDER =
+  '[Video answer submitted — recording not stored]';
+
+/** Remove legacy video blobs from API payloads and DB-shaped objects. */
+const sanitizeInterviewForResponse = (interview) => {
+  const doc = interview.toObject ? interview.toObject() : { ...interview };
+  if (Array.isArray(doc.questions)) {
+    doc.questions = doc.questions.map((q) => {
+      const question = { ...q };
+      if (question.videoAnswer) {
+        if (!question.answerText) {
+          question.answerText = VIDEO_ANSWER_PLACEHOLDER;
+        }
+        delete question.videoAnswer;
+      }
+      return question;
+    });
+  }
+  return doc;
+};
+
+const formatFeedbackText = (raw) => {
+  if (!raw || typeof raw !== 'string') return raw;
+  return raw
+    .replace(/\r\n/g, '\n')
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/^\s*#+\s+/gm, '')
+    .replace(/^\s*[\*\-]\s+/gm, '• ')
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+};
+
+const parseFeedbackAndScore = (text) => {
+  const scoreMatch = text.match(/Score:\s*(\d+)/i);
+  const feedbackMatch = text.match(
+    /Feedback:\s*([\s\S]*?)(?=\n\s*Score:|\n\s*Areas for Improvement:|$)/i
+  );
+  let score = scoreMatch ? parseInt(scoreMatch[1], 10) : null;
+  if (score !== null) score = Math.min(10, Math.max(1, score));
+  const feedback = formatFeedbackText(
+    feedbackMatch ? feedbackMatch[1].trim() : 'No feedback provided'
+  );
+  return { feedback, score };
+};
+
+const buildSpokenAnswerPrompt = (questionText) =>
+  `You are an expert interviewer. Listen to the candidate's spoken answer in the attached audio.
+
+Interview question: ${questionText}
+
+Rules:
+- If they only read the question aloud (no real answer), give Score 1 or 2 and state that in Feedback in one clear sentence.
+- Otherwise evaluate their actual answer: relevance, technical accuracy, and communication.
+- Feedback must be PLAIN TEXT only: no markdown, no asterisks, no bullet symbols.
+- Keep Feedback under 100 words (at most 2 short paragraphs).
+
+Reply EXACTLY in this format:
+Feedback: <your feedback>
+Score: <integer 1-10>
+Areas for Improvement: <one short line>`;
+
+const isQuestionAnswered = (q) =>
+  !!(q.answerText || q.codeAnswer);
+
+const evaluateTextAnswer = async (question, answerText) => {
+  question.answerText = answerText;
+  question.audioAnswer = null;
+
+  const prompt = `You are an expert interviewer. Please evaluate this answer and provide feedback and a score out of 10. Focus on clarity, technical accuracy, and communication skills.\n\nQuestion: ${question.questionText}\nAnswer: ${answerText}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response EXACTLY as follows:\nFeedback: [your feedback]\nScore: [score out of 10]\nAreas for Improvement: [specific areas to improve]`;
+
+  const result = await retryGenerateContent(prompt);
+  const text = result.response.text();
+  console.log('Raw AI response for feedback:', text);
+
+  const parsed = parseFeedbackAndScore(text);
+  if (parsed.score !== null) {
+    question.feedback = parsed.feedback;
+    question.score = parsed.score;
+  } else {
+    console.error('Failed to parse AI response:', text);
+    question.feedback = 'Failed to generate feedback. Please try again.';
+    question.score = null;
+  }
+};
+
+const evaluateSpokenMediaAnswer = async (question, mediaBase64, mimeType) => {
+  question.answerText = VIDEO_ANSWER_PLACEHOLDER;
+  question.audioAnswer = null;
+
+  const cleanBase64 = mediaBase64.includes(';base64,')
+    ? mediaBase64.split(';base64,').pop()
+    : mediaBase64;
+
+  const multimodalPrompt = [
+    {
+      inlineData: {
+        data: cleanBase64,
+        mimeType,
+      },
+    },
+    buildSpokenAnswerPrompt(question.questionText),
+  ];
+
+  const result = await retryGenerateContent(multimodalPrompt, 3, 2000);
+  const text = result.response.text();
+  const parsed = parseFeedbackAndScore(text);
+  question.feedback = parsed.feedback;
+  question.score = parsed.score;
+};
+
+const evaluateVideoAnswer = async (question, videoAnswer) => {
+  await evaluateSpokenMediaAnswer(question, videoAnswer, 'video/webm');
+};
+
+const evaluateAudioAnswer = async (question, audioAnswer) => {
+  let mimeType = 'audio/webm';
+  const dataUrlMatch = String(audioAnswer).match(/^data:([^;]+);base64,/);
+  if (dataUrlMatch) mimeType = dataUrlMatch[1];
+  await evaluateSpokenMediaAnswer(question, audioAnswer, mimeType);
 };
 
 // @route POST api/interviews
@@ -202,15 +405,36 @@ router.post(
         { new: true }
       );
 
-      res.json(interview);
+      res.json(sanitizeInterviewForResponse(interview));
     } catch (err) {
       console.error('Error starting interview with AI:', err.message);
-      // Specific error handling for AI overload during start
-       if (err.message.includes('AI model remains overloaded') || (err.status === 503)) {
-          res.status(503).json({ error: 'AI service is currently busy. Please try again later.' });
-       } else {
-         res.status(500).json({ error: 'Server Error', details: err.message });
-       }
+
+      if (process.env.NODE_ENV !== 'production' && isQuotaOrRateLimitError(err)) {
+        try {
+          console.warn('Using built-in fallback interview (dev, Gemini quota exceeded).');
+          const interview = await createDevFallbackInterview(
+            req.user.id,
+            role,
+            programmingLanguage
+          );
+          return res.json(sanitizeInterviewForResponse(interview));
+        } catch (fallbackErr) {
+          console.error('Dev fallback interview failed:', fallbackErr.message);
+        }
+      }
+
+      if (isQuotaOrRateLimitError(err)) {
+        return res.status(429).json({
+          error:
+            'Gemini API quota exceeded for this model. Add billing at https://aistudio.google.com/apikey or set GOOGLE_AI_MODEL (e.g. gemini-2.5-flash) in backend/.env.',
+          code: 'GEMINI_QUOTA_EXCEEDED',
+          model: GEMINI_MODEL,
+        });
+      }
+      if (err.message.includes('AI model remains unavailable') || err.status === 503) {
+        return res.status(503).json({ error: 'AI service is currently busy. Please try again later.' });
+      }
+      return res.status(500).json({ error: 'Server Error', details: err.message });
     }
   }
 );
@@ -239,7 +463,7 @@ router.post('/:interview_id/answer', auth, async (req, res) => {
     const question = interview.questions[questionIndex];
     const isCodingQuestion = question.questionText.startsWith('[CODING_PROBLEM]');
 
-    // Validate input based on question type
+    // Validate input and generate feedback based on question type
     if (isCodingQuestion) {
       if (!codeAnswer || !programmingLanguage) {
         return res.status(400).json({ msg: 'Code answer and programming language are required for coding questions' });
@@ -247,108 +471,19 @@ router.post('/:interview_id/answer', auth, async (req, res) => {
       question.codeAnswer = codeAnswer;
       question.programmingLanguage = programmingLanguage;
     } else if (audioAnswer) {
-      question.audioAnswer = audioAnswer;
-      // Generate feedback for audio answer using Gemini AI with retry
-      const prompt = `You are an expert interviewer. Please evaluate the candidate's answer based on the context that it was provided as an audio recording for the following question and provide feedback and a score out of 10. Focus on clarity, technical accuracy (based on the question), and communication skills.\n\nQuestion: ${question.questionText}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n
-Format your response as:
-Feedback: [your feedback]
-Score: [score out of 10]
-Areas for Improvement: [specific areas to improve]`;
-
-      const result = await retryGenerateContent(prompt); // Use retry helper
-      const response = await result.response;
-      const text = response.text();
-
-      // Parse the response to extract feedback and score
-      const feedbackMatch = text.match(/Feedback: (.*?)(?=Score:|$)/s);
-      const scoreMatch = text.match(/Score: (\d+)/);
-
-      question.feedback = feedbackMatch ? feedbackMatch[1].trim() : 'No feedback provided';
-      question.score = scoreMatch ? parseInt(scoreMatch[1]) : null;
+      if (typeof audioAnswer !== 'string' || audioAnswer.length > 6 * 1024 * 1024) {
+        return res.status(400).json({ msg: 'Recording is too large. Please record a shorter answer (max ~30 seconds).' });
+      }
+      await evaluateAudioAnswer(question, audioAnswer);
     } else if (videoAnswer) {
-      question.videoAnswer = videoAnswer;
-      // Generate feedback for video answer using Gemini AI (existing logic)
-      const prompt = `You are an expert interviewer. Please evaluate this video answer for the following question and provide feedback and a score out of 10. Focus on clarity, technical accuracy, and communication skills.\n\nQuestion: ${question.questionText}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response as:
-Feedback: [your feedback]\nScore: [score out of 10]\nAreas for Improvement: [specific areas to improve]`;
-
-      const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
-
-      // Parse the response to extract feedback and score
-      const feedbackMatch = text.match(/Feedback: (.*?)(?=Score:|$)/s);
-      const scoreMatch = text.match(/Score: (\d+)/);
-
-      question.feedback = feedbackMatch ? feedbackMatch[1].trim() : 'No feedback provided';
-      question.score = scoreMatch ? parseInt(scoreMatch[1]) : null;
+      if (typeof videoAnswer !== 'string' || videoAnswer.length > 14 * 1024 * 1024) {
+        return res.status(400).json({ msg: 'Video answer is too large. Please record a shorter answer (under ~30 seconds).' });
+      }
+      await evaluateVideoAnswer(question, videoAnswer);
+    } else if (answerText) {
+      await evaluateTextAnswer(question, answerText);
     } else {
-      if (!answerText && !videoAnswer && !audioAnswer) { // Require either text OR video OR audio answer
-         return res.status(400).json({ msg: 'Answer text, video answer, or audio answer is required for non-coding questions' });
-      }
-
-      if (answerText) {
-        question.answerText = answerText;
-      } else if (videoAnswer) {
-         // Handle video answer (existing logic)
-         question.videoAnswer = videoAnswer;
-         // Generate feedback for video answer using Gemini AI with retry
-         const prompt = `You are an expert interviewer. Please evaluate this video answer for the following question and provide feedback and a score out of 10. Focus on clarity, technical accuracy, and communication skills.\n\nQuestion: ${question.questionText}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response as:\nFeedback: [your feedback]\nScore: [score out of 10]\nAreas for Improvement: [specific areas to improve]`;
-
-         const result = await retryGenerateContent(prompt); // Use retry helper
-         const response = await result.response;
-         const text = response.text();
-
-         // Parse the response to extract feedback and score
-         const feedbackMatch = text.match(/Feedback: (.*?)(?=Score:|$)/s);
-         const scoreMatch = text.match(/Score: (\d+)/);
-
-         question.feedback = feedbackMatch ? feedbackMatch[1].trim() : 'No feedback provided';
-         question.score = scoreMatch ? parseInt(scoreMatch[1]) : null;
-      } else if (audioAnswer) {
-         question.audioAnswer = audioAnswer;
-         // Generate feedback for audio answer using Gemini AI with retry
-         // Note: Gemini doesn't directly process audio, so we'll adapt the prompt
-         const prompt = `You are an expert interviewer. Please evaluate the candidate's answer based on the context that it was provided as an audio recording for the following question and provide feedback and a score out of 10. Focus on clarity, technical accuracy (based on the question), and communication skills.\n\nQuestion: ${question.questionText}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n
-Format your response as:
-Feedback: [your feedback]
-Score: [score out of 10]
-Areas for Improvement: [specific areas to improve]`;
-
-         const result = await retryGenerateContent(prompt); // Use retry helper
-         const response = await result.response;
-         const text = response.text();
-
-         // Parse the response to extract feedback and score
-         const feedbackMatch = text.match(/Feedback: (.*?)(?=Score:|$)/s);
-         const scoreMatch = text.match(/Score: (\d+)/);
-
-         question.feedback = feedbackMatch ? feedbackMatch[1].trim() : 'No feedback provided';
-         question.score = scoreMatch ? parseInt(scoreMatch[1]) : null;
-      }
-    }
-
-    // Generate feedback using Gemini AI for text answers with retry
-    if (!videoAnswer && !audioAnswer && !isCodingQuestion) {
-       const prompt = `You are an expert interviewer. Please evaluate this answer and provide feedback and a score out of 10. Focus on clarity, technical accuracy, and communication skills.\n\nQuestion: ${question.questionText}\nAnswer: ${answerText}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response EXACTLY as follows:\nFeedback: [your feedback]\nScore: [score out of 10]\nAreas for Improvement: [specific areas to improve]`;
-
-       const result = await retryGenerateContent(prompt); // Use retry helper
-       const response = await result.response;
-       const text = response.text();
-
-       console.log('Raw AI response for feedback:', text);
-
-       // Parse the response to extract feedback and score with more robust regex
-       const feedbackMatch = text.match(/Feedback:\s*(.*?)(?=\nScore:|$)/s);
-       const scoreMatch = text.match(/Score:\s*(\d+)/);
-
-       if (feedbackMatch && scoreMatch) {
-         question.feedback = feedbackMatch[1].trim();
-         question.score = parseInt(scoreMatch[1]);
-       } else {
-         console.error('Failed to parse AI response:', text);
-         question.feedback = 'Failed to generate feedback. Please try again.';
-         question.score = null;
-       }
+      return res.status(400).json({ msg: 'Answer text, video answer, or audio answer is required for non-coding questions' });
     }
 
      // Handle coding question feedback generation with retry
@@ -384,7 +519,7 @@ Areas for Improvement: [specific areas to improve]`;
     // If this is the last question and all questions are answered, calculate overall score
     if (questionIndex === interview.questions.length - 1) {
       const totalScore = interview.questions.reduce((sum, q) => {
-        const score = isCodingQuestion ? q.codeScore : q.score;
+        const score = q.questionText.startsWith('[CODING_PROBLEM]') ? q.codeScore : q.score;
         return sum + (score || 0);
       }, 0);
       interview.overallScore = Math.round(totalScore / interview.questions.length);
@@ -444,7 +579,6 @@ Overall Feedback: [your feedback]`;
           programmingLanguage: null,
           codeFeedback: null,
           codeScore: null,
-          videoAnswer: null,
           audioAnswer: null,
         };
         interview.questions.push(newQuestion);
@@ -464,15 +598,28 @@ Overall Feedback: [your feedback]`;
             programmingLanguage: null,
             codeFeedback: null,
             codeScore: null,
-            videoAnswer: null,
             audioAnswer: null,
          });
          await interview.save();
       }
     }
 
-    // Always return the updated interview object
-      res.json(interview);
+    // Remove legacy video blobs from MongoDB (frees disk; not returned in API)
+    const unsetPaths = {};
+    interview.questions.forEach((q, i) => {
+      if (q.videoAnswer) {
+        unsetPaths[`questions.${i}.videoAnswer`] = '';
+        if (!q.answerText) {
+          q.answerText = VIDEO_ANSWER_PLACEHOLDER;
+        }
+      }
+    });
+    if (Object.keys(unsetPaths).length > 0) {
+      await Interview.updateOne({ _id: interview._id }, { $unset: unsetPaths });
+    }
+    await interview.save();
+
+    res.json(sanitizeInterviewForResponse(interview));
 
     } catch (err) {
     console.error('Error in /:interview_id/answer:', err);
@@ -537,7 +684,7 @@ router.get(
 
       // TODO: Add logic to ensure the user requesting the interview is the owner
 
-      res.json(interview);
+      res.json(sanitizeInterviewForResponse(interview));
     } catch (err) {
       console.error(err.message);
       res.status(500).json({ error: 'Server Error', details: err.message });

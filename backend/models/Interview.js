@@ -33,10 +33,6 @@ const QuestionSchema = new mongoose.Schema({
     type: Number,
     default: null
   },
-  videoAnswer: {
-    type: String,
-    default: null
-  },
   audioAnswer: {
     type: String,
     default: null

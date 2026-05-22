@@ -13,10 +13,11 @@ const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:8000';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const headersList = headers();
+    const { id } = await params;
+    const headersList = await headers();
     const authHeader = headersList.get('authorization');
 
     if (!authHeader) {
@@ -29,7 +30,7 @@ export async function GET(
       );
     }
 
-    const response = await fetch(`${BACKEND_URL}/api/interviews/${params.id}`, {
+    const response = await fetch(`${BACKEND_URL}/api/interviews/${id}`, {
       headers: {
         'Authorization': authHeader,
         'Content-Type': 'application/json',
@@ -70,10 +71,11 @@ export async function GET(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const headersList = headers();
+    const { id } = await params;
+    const headersList = await headers();
     const authHeader = headersList.get('authorization');
 
     if (!authHeader) {
@@ -86,7 +88,7 @@ export async function DELETE(
       );
     }
 
-    const response = await fetch(`${BACKEND_URL}/api/interviews/${params.id}`, {
+    const response = await fetch(`${BACKEND_URL}/api/interviews/${id}`, {
       method: 'DELETE',
       headers: {
         'Authorization': authHeader,

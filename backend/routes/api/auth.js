@@ -148,6 +148,59 @@ router.post('/register', async (req, res) => {
   }
 });
 
+// Enabled in non-production unless explicitly disabled (set ENABLE_DEV_LOGIN=false in prod)
+const isDevLoginEnabled = () =>
+  process.env.NODE_ENV !== 'production' &&
+  process.env.ENABLE_DEV_LOGIN !== 'false';
+
+const signTokenForUser = (user, res) => {
+  if (!process.env.JWT_SECRET) {
+    console.error('JWT_SECRET not set, cannot sign token.');
+    return res.status(500).json({ error: 'Server configuration error: JWT secret missing.' });
+  }
+
+  const payload = { user: { id: user.id } };
+  jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: '800d' }, (err, token) => {
+    if (err) {
+      console.error('JWT signing error:', err.message);
+      return res.status(500).json({ error: 'Token generation failed', details: err.message });
+    }
+    res.json({ token, user: { id: user.id, email: user.email, name: user.name } });
+  });
+};
+
+// @route   POST api/auth/dev-login
+// @desc    Dev-only: sign in as a fixed test user (no password). Disabled in production.
+// @access  Public (dev only)
+router.post('/dev-login', async (req, res) => {
+  if (!isDevLoginEnabled()) {
+    return res.status(404).json({ error: 'Not found' });
+  }
+
+  try {
+    const email = (process.env.DEV_LOGIN_EMAIL || 'dev@test.com').toLowerCase();
+    const name = process.env.DEV_LOGIN_NAME || 'Dev User';
+
+    let user = await User.findOne({ email });
+    if (!user) {
+      user = new User({
+        name,
+        email,
+        password: await bcrypt.hash('dev-login-not-used', 10),
+      });
+      await user.save();
+      console.log('POST /api/auth/dev-login: Created dev user:', email);
+    } else {
+      console.log('POST /api/auth/dev-login: Using existing dev user:', email);
+    }
+
+    signTokenForUser(user, res);
+  } catch (err) {
+    console.error('POST /api/auth/dev-login: Error:', err.message);
+    res.status(500).json({ error: 'Server Error', details: err.message });
+  }
+});
+
 // @route   POST api/auth/google/user
 // @desc    Create or update user from Google OAuth
 // @access  Public
