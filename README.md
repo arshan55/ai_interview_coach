@@ -70,6 +70,8 @@ Start the API server:
 npm run dev
 ```
 
+API base URL: http://localhost:5000
+
 ### 2) Frontend
 
 ```bash
