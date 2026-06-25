@@ -454,13 +454,18 @@ router.post('/:interview_id/answer', auth, async (req, res) => {
       return res.status(401).json({ msg: 'Not authorized' });
     }
 
-    const { questionIndex, answerText, codeAnswer, programmingLanguage, videoAnswer, audioAnswer } = req.body;
+    const { questionIndex, answerText, codeAnswer, programmingLanguage, videoAnswer, audioAnswer, wpm, fillerWordsCount } = req.body;
 
     if (questionIndex === undefined || questionIndex >= interview.questions.length) {
          return res.status(400).json({ msg: 'Invalid question index' });
       }
 
     const question = interview.questions[questionIndex];
+
+    // Save speech metrics if provided
+    if (typeof wpm === 'number') question.wpm = wpm;
+    if (typeof fillerWordsCount === 'number') question.fillerWordsCount = fillerWordsCount;
+
     const isCodingQuestion = question.questionText.startsWith('[CODING_PROBLEM]');
 
     // Validate input and generate feedback based on question type

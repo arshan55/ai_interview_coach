@@ -4,6 +4,19 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { User, Eye, EyeOff, MessageSquare, Users, BookOpen, Play, ArrowRight, TrendingUp, Calendar, Award, Target, Trash2 } from 'lucide-react';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  Tooltip,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  PolarRadiusAxis,
+  Radar,
+} from 'recharts';
 
 interface Interview {
   _id: string;
@@ -22,6 +35,118 @@ interface InterviewStats {
   totalQuestions: number;
   lastInterviewDate?: string;
 }
+
+const PerformanceDashboard = ({ interviews }: { interviews: Interview[] }) => {
+  // Process data for trend chart (chronological order)
+  const trendData = [...interviews]
+    .filter(inv => inv.overallScore != null)
+    .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    .map(inv => ({
+      date: new Date(inv.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }),
+      score: inv.overallScore || 0,
+      role: inv.role ? inv.role.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ') : 'General'
+    }));
+
+  // Process data by Category (Algorithms, System Design, Behavioral)
+  const categoryScores: Record<string, { total: number; count: number }> = {
+    'Algorithms & Coding': { total: 0, count: 0 },
+    'System Design & DevOps': { total: 0, count: 0 },
+    'Behavioral & Management': { total: 0, count: 0 }
+  };
+
+  interviews.forEach(inv => {
+    const role = (inv.role || '').toLowerCase();
+    const score = inv.overallScore || 0;
+    
+    if (
+      role.includes('system') || 
+      role.includes('architect') || 
+      role.includes('devops') || 
+      role.includes('sre') || 
+      role.includes('infrastructure')
+    ) {
+      categoryScores['System Design & DevOps'].total += score;
+      categoryScores['System Design & DevOps'].count += 1;
+    } else if (
+      role.includes('manager') || 
+      role.includes('scrum') || 
+      role.includes('product') || 
+      role.includes('hr') || 
+      role.includes('behavioral')
+    ) {
+      categoryScores['Behavioral & Management'].total += score;
+      categoryScores['Behavioral & Management'].count += 1;
+    } else {
+      categoryScores['Algorithms & Coding'].total += score;
+      categoryScores['Algorithms & Coding'].count += 1;
+    }
+  });
+
+  const radarData = Object.keys(categoryScores).map(cat => {
+    const data = categoryScores[cat];
+    return {
+      subject: cat,
+      score: data.count > 0 ? Math.round((data.total / data.count) * 10) / 10 : 0,
+      fullMark: 10
+    };
+  });
+
+  if (interviews.length === 0) {
+    return (
+      <div className="bg-white/80 backdrop-blur-md rounded-2xl border border-slate-200 p-8 text-center shadow-sm mb-8">
+        <p className="text-slate-500 font-medium">Complete some interviews to view your performance dashboard!</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+      {/* Trend Chart */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-md flex flex-col">
+        <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-1">Score Progression</h4>
+        <p className="text-xs text-slate-500 mb-6">Tracking your overall interview ratings chronologically.</p>
+        <div className="h-64 w-full">
+          <ResponsiveContainer width="100%" height="100%">
+            <AreaChart data={trendData}>
+              <defs>
+                <linearGradient id="scoreColor" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#3B82F6" stopOpacity={0.2}/>
+                  <stop offset="95%" stopColor="#3B82F6" stopOpacity={0}/>
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="date" stroke="#94A3B8" fontSize={11} tickLine={false} />
+              <YAxis domain={[0, 10]} stroke="#94A3B8" fontSize={11} tickLine={false} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1E293B', borderRadius: '12px', border: 'none', color: '#F8FAFC' }}
+                labelClassName="font-bold text-slate-300"
+              />
+              <Area type="monotone" dataKey="score" stroke="#3B82F6" strokeWidth={2.5} fillOpacity={1} fill="url(#scoreColor)" name="AI Score" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Category Performance Radar Chart */}
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-md flex flex-col">
+        <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-1">Strengths & Topics</h4>
+        <p className="text-xs text-slate-500 mb-6">Topic categorization mapping average scores.</p>
+        <div className="h-64 w-full flex items-center justify-center">
+          <ResponsiveContainer width="100%" height="100%">
+            <RadarChart cx="50%" cy="50%" outerRadius="70%" data={radarData}>
+              <PolarGrid stroke="#E2E8F0" />
+              <PolarAngleAxis dataKey="subject" stroke="#64748B" fontSize={10} fontWeight="bold" />
+              <PolarRadiusAxis angle={30} domain={[0, 10]} stroke="#94A3B8" fontSize={10} />
+              <Radar name="Avg Score" dataKey="score" stroke="#6366F1" fill="#6366F1" fillOpacity={0.3} />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#1E293B', borderRadius: '12px', border: 'none', color: '#F8FAFC' }}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const AIInterviewCoach = () => {
   const [currentView, setCurrentView] = useState('home');
@@ -330,6 +455,12 @@ const AIInterviewCoach = () => {
             </div>
           </div>
 
+          {/* Interactive Performance Charts */}
+          <div className="mt-8">
+            <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">Performance Analytics</h2>
+            <PerformanceDashboard interviews={interviews} />
+          </div>
+
           <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mt-6 sm:mt-8 mb-4 sm:mb-6">Recent Interviews</h2>
           {interviewsLoading ? (
             <p>Loading interviews...</p>
@@ -474,6 +605,12 @@ const AIInterviewCoach = () => {
                 </div>
                 </div>
               </div>
+            </div>
+            
+            {/* Interactive Performance Charts */}
+            <div className="mt-8">
+              <h2 className="text-xl sm:text-2xl font-bold text-gray-800 mb-6">Performance Analytics</h2>
+              <PerformanceDashboard interviews={interviews} />
             </div>
           </div>
         )}

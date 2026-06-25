@@ -36,6 +36,14 @@ const QuestionSchema = new mongoose.Schema({
   audioAnswer: {
     type: String,
     default: null
+  },
+  wpm: {
+    type: Number,
+    default: null
+  },
+  fillerWordsCount: {
+    type: Number,
+    default: null
   }
 });
 

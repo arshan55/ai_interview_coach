@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
+import Editor, { OnMount } from '@monaco-editor/react';
 import {
   VIDEO_ANSWER_PLACEHOLDER,
   isVideoAnswerPlaceholder,
@@ -30,6 +31,8 @@ interface Question {
   programmingLanguage?: string | null;
   codeFeedback?: string | null;
   codeScore?: number | null;
+  wpm?: number | null;
+  fillerWordsCount?: number | null;
 }
 
 interface Interview {
@@ -117,6 +120,42 @@ const resetVideoAnswerState = (
   setters.setAnswerMode('text');
 };
 
+const formatTime = (seconds: number) => {
+  const mins = Math.floor(seconds / 60);
+  const secs = seconds % 60;
+  return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+};
+
+const getMonacoLanguage = (lang: string) => {
+  const l = lang.toLowerCase().trim();
+  if (l === 'c++') return 'cpp';
+  if (l === 'c#') return 'csharp';
+  return l;
+};
+
+const getDefaultCodeTemplate = (lang: string) => {
+  const l = lang.toLowerCase().trim();
+  if (l === 'javascript') {
+    return `/**\n * @param {any} input\n * @return {any}\n */\nfunction solve(input) {\n  // Write your JavaScript code here\n  \n  return null;\n}`;
+  }
+  if (l === 'typescript') {
+    return `function solve(input: any): any {\n  // Write your TypeScript code here\n  \n  return null;\n}`;
+  }
+  if (l === 'python') {
+    return `def solve(input_data):\n    # Write your Python code here\n    pass\n`;
+  }
+  if (l === 'java') {
+    return `public class Solution {\n    public static Object solve(Object input) {\n        // Write your Java code here\n        \n        return null;\n    }\n}`;
+  }
+  if (l === 'c++') {
+    return `#include <iostream>\nusing namespace std;\n\nclass Solution {\npublic:\n    void solve() {\n        // Write your C++ code here\n    }\n};`;
+  }
+  if (l === 'go') {
+    return `package main\n\nimport "fmt"\n\nfunc solve(input interface{}) interface{} {\n    // Write your Go code here\n    return nil\n}`;
+  }
+  return `// Write your code here\n`;
+};
+
 export default function InterviewPage() {
   const router = useRouter();
   const pathname = usePathname();
@@ -128,6 +167,24 @@ export default function InterviewPage() {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [score, setScore] = useState<number | null>(null);
   const [selectedCodingLanguage, setSelectedCodingLanguage] = useState('');
+  const [timeSpent, setTimeSpent] = useState(0);
+
+  // Split pane coding workspace states
+  const [activeLeftTab, setActiveLeftTab] = useState<'problem' | 'feedback'>('problem');
+  const [isConsoleOpen, setIsConsoleOpen] = useState(false);
+  const [consoleOutput, setConsoleOutput] = useState('');
+  const [isRunningCode, setIsRunningCode] = useState(false);
+
+  // Speech metrics state
+  const [speechWpm, setSpeechWpm] = useState<number | null>(null);
+  const [speechFillerCount, setSpeechFillerCount] = useState<number | null>(null);
+  const speechStartTimeRef = useRef<number | null>(null);
+  const speechWordCountRef = useRef(0);
+  const speechFillerWordsRef = useRef(0);
+  const metricsRecognitionRef = useRef<any>(null);
+
+  // Monaco editor ref for autocomplete mount
+  const editorRef = useRef<any>(null);
 
   // State for recording
   const [isRecording, setIsRecording] = useState(false);
@@ -194,6 +251,52 @@ export default function InterviewPage() {
       mediaStreamRef.current = null;
     }
     setIsCameraActive(false);
+  };
+
+  // Start background speech metrics recognition during video recording
+  const startSpeechMetrics = () => {
+    if (typeof window === 'undefined') return;
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    speechStartTimeRef.current = Date.now();
+    speechWordCountRef.current = 0;
+    speechFillerWordsRef.current = 0;
+    setSpeechWpm(null);
+    setSpeechFillerCount(null);
+    const fillerRegex = /\b(um+|uh+|ah+|er+|hmm+|like|you know|so|basically|literally|actually|i mean|right)\b/gi;
+    try {
+      const rec = new SR();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = 'en-US';
+      rec.onresult = (event: any) => {
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            const t = event.results[i][0].transcript;
+            const words = t.trim().split(/\s+/).filter(Boolean);
+            speechWordCountRef.current += words.length;
+            const fillers = t.match(fillerRegex);
+            if (fillers) speechFillerWordsRef.current += fillers.length;
+          }
+        }
+      };
+      rec.start();
+      metricsRecognitionRef.current = rec;
+    } catch (e) { /* ignore */ }
+  };
+
+  const stopSpeechMetrics = () => {
+    if (metricsRecognitionRef.current) {
+      try { metricsRecognitionRef.current.stop(); } catch (e) { /* ignore */ }
+      metricsRecognitionRef.current = null;
+    }
+    if (speechStartTimeRef.current) {
+      const elapsed = (Date.now() - speechStartTimeRef.current) / 60000; // minutes
+      const wpm = elapsed > 0 ? Math.round(speechWordCountRef.current / elapsed) : 0;
+      setSpeechWpm(wpm);
+      setSpeechFillerCount(speechFillerWordsRef.current);
+      speechStartTimeRef.current = null;
+    }
   };
 
   const startRecording = () => {
@@ -269,16 +372,19 @@ export default function InterviewPage() {
 
       recorder.start(250);
       setIsRecording(true);
+      startSpeechMetrics();
 
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = setInterval(() => {
         setRecordingTimer((prev) => {
           if (prev >= MAX_RECORDING_SECONDS) {
-            if (mediaRecorderRef.current?.state !== 'inactive') {
-              mediaRecorderRef.current.stop();
+            const currentMediaRecorder = mediaRecorderRef.current;
+            if (currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+              currentMediaRecorder.stop();
             }
-            if (audioRecorderRef.current?.state !== 'inactive') {
-              audioRecorderRef.current.stop();
+            const currentAudioRecorder = audioRecorderRef.current;
+            if (currentAudioRecorder && currentAudioRecorder.state !== 'inactive') {
+              currentAudioRecorder.stop();
             }
             if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
             setIsRecording(false);
@@ -295,17 +401,20 @@ export default function InterviewPage() {
   };
 
   const stopRecording = () => {
-    if (mediaRecorderRef.current?.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
+    const currentMediaRecorder = mediaRecorderRef.current;
+    if (currentMediaRecorder && currentMediaRecorder.state !== 'inactive') {
+      currentMediaRecorder.stop();
     }
-    if (audioRecorderRef.current?.state !== 'inactive') {
-      audioRecorderRef.current.stop();
+    const currentAudioRecorder = audioRecorderRef.current;
+    if (currentAudioRecorder && currentAudioRecorder.state !== 'inactive') {
+      currentAudioRecorder.stop();
     }
     setIsRecording(false);
     if (timerIntervalRef.current) {
       clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
     }
+    stopSpeechMetrics();
     stopCamera();
   };
 
@@ -543,6 +652,250 @@ export default function InterviewPage() {
     </div>
   );
 
+  const runCode = async () => {
+    if (!answer.trim()) {
+      setConsoleOutput('❌ Error: Solution cannot be empty.');
+      setIsConsoleOpen(true);
+      return;
+    }
+    setIsRunningCode(true);
+    setIsConsoleOpen(true);
+    setConsoleOutput('⏳ Running your code...');
+
+    const lang = (selectedCodingLanguage || interview?.programmingLanguage || '').toLowerCase();
+
+    if (lang === 'python') {
+      // Use Pyodide for Python execution
+      try {
+        setConsoleOutput('⏳ Loading Python runtime (Pyodide)...');
+        const pyodideModule = await (window as any).__pyodide_loading__ || (
+          (window as any).__pyodide_loading__ = (async () => {
+            if (!(window as any).loadPyodide) {
+              await new Promise<void>((res, rej) => {
+                const s = document.createElement('script');
+                s.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
+                s.onload = () => res();
+                s.onerror = () => rej(new Error('Failed to load Pyodide script'));
+                document.head.appendChild(s);
+              });
+            }
+            return await (window as any).loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/' });
+          })()
+        );
+        setConsoleOutput('✔ Python runtime ready. Running...\n');
+
+        // Capture stdout
+        pyodideModule.runPython(`
+import sys
+import io
+sys.stdout = io.StringIO()
+sys.stderr = io.StringIO()
+`);
+        try {
+          pyodideModule.runPython(answer);
+          const stdout = pyodideModule.runPython('sys.stdout.getvalue()');
+          const stderr = pyodideModule.runPython('sys.stderr.getvalue()');
+          const out = (stdout || '').trim();
+          const err = (stderr || '').trim();
+          setConsoleOutput(
+            `✔ Execution complete!\n\n` +
+            (out ? `Output:\n${out}\n` : 'No output produced.\n') +
+            (err ? `\n⚠ Stderr:\n${err}` : '')
+          );
+        } catch (pyErr: any) {
+          setConsoleOutput(`❌ Python Runtime Error:\n${pyErr.message || String(pyErr)}`);
+        }
+      } catch (loadErr: any) {
+        setConsoleOutput(`❌ Failed to load Python runtime:\n${loadErr.message || String(loadErr)}\n\nCheck your internet connection and try again.`);
+      } finally {
+        setIsRunningCode(false);
+      }
+      return;
+    }
+
+    if (lang === 'javascript' || lang === 'typescript') {
+      // Run JS/TS in a sandboxed Web Worker
+      try {
+        const workerCode = `
+self.onmessage = function(e) {
+  const logs = [];
+  const origLog = console.log;
+  console.log = (...args) => logs.push(args.map(String).join(' '));
+  try {
+    const fn = new Function(e.data);
+    fn();
+    self.postMessage({ ok: true, output: logs.join('\\n') });
+  } catch(err) {
+    self.postMessage({ ok: false, error: err.message });
+  } finally {
+    console.log = origLog;
+  }
+};
+`;
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const url = URL.createObjectURL(blob);
+        const worker = new Worker(url);
+
+        await new Promise<void>((resolve) => {
+          const timeout = setTimeout(() => {
+            worker.terminate();
+            setConsoleOutput('❌ Execution timed out (5s). Check for infinite loops.');
+            resolve();
+          }, 5000);
+
+          worker.onmessage = (e) => {
+            clearTimeout(timeout);
+            worker.terminate();
+            URL.revokeObjectURL(url);
+            if (e.data.ok) {
+              setConsoleOutput(
+                `✔ Execution complete!\n\n` +
+                (e.data.output ? `Output:\n${e.data.output}` : 'No output (add console.log() calls to see results)')
+              );
+            } else {
+              setConsoleOutput(`❌ Runtime Error:\n${e.data.error}`);
+            }
+            resolve();
+          };
+
+          worker.onerror = (err) => {
+            clearTimeout(timeout);
+            worker.terminate();
+            URL.revokeObjectURL(url);
+            setConsoleOutput(`❌ Worker Error:\n${err.message}`);
+            resolve();
+          };
+
+          worker.postMessage(answer);
+        });
+      } catch (err: any) {
+        setConsoleOutput(`❌ Failed to start execution:\n${err.message}`);
+      } finally {
+        setIsRunningCode(false);
+      }
+      return;
+    }
+
+    // For other languages (Java, C++, Go etc.) — static analysis only
+    setConsoleOutput(
+      `ℹ️ In-browser execution is available for JavaScript and Python only.\n` +
+      `For ${lang.toUpperCase()}, use "Submit Solution" to get AI evaluation of your code quality and correctness.`
+    );
+    setIsRunningCode(false);
+  };
+
+  const resetCode = () => {
+    if (confirm('Are you sure you want to reset your code to the default template? Your current changes will be lost.')) {
+      const lang = selectedCodingLanguage || interview?.programmingLanguage || 'javascript';
+      setAnswer(getDefaultCodeTemplate(lang));
+    }
+  };
+
+  const handleEditorMount: OnMount = useCallback((editor, monaco) => {
+    editorRef.current = editor;
+    // Enable rich IntelliSense
+    monaco.languages.typescript.javascriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      allowNonTsExtensions: true,
+      checkJs: true,
+    });
+    monaco.languages.typescript.typescriptDefaults.setCompilerOptions({
+      target: monaco.languages.typescript.ScriptTarget.ES2020,
+      allowNonTsExtensions: true,
+      strict: false,
+    });
+    monaco.languages.typescript.javascriptDefaults.setDiagnosticsOptions({
+      noSemanticValidation: false,
+      noSyntaxValidation: false,
+    });
+    // Quick suggestions globally
+    editor.updateOptions({
+      quickSuggestions: { other: true, comments: false, strings: true },
+      suggestOnTriggerCharacters: true,
+      parameterHints: { enabled: true },
+      wordBasedSuggestions: 'allDocuments',
+      suggest: { snippetsPreventQuickSuggestions: false },
+    });
+  }, []);
+
+  const exportPDF = async () => {
+    if (!interview || !currentQuestion) return;
+    try {
+      const { jsPDF } = await import('jspdf');
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pageW = doc.internal.pageSize.getWidth();
+      const margin = 14;
+      const lineH = 7;
+      let y = 20;
+
+      const addText = (text: string, size = 11, bold = false, color: [number,number,number] = [30,30,30]) => {
+        doc.setFontSize(size);
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        doc.setTextColor(...color);
+        const lines = doc.splitTextToSize(text, pageW - margin * 2);
+        lines.forEach((line: string) => {
+          if (y > 275) { doc.addPage(); y = 20; }
+          doc.text(line, margin, y);
+          y += lineH;
+        });
+      };
+
+      const addDivider = () => {
+        if (y > 275) { doc.addPage(); y = 20; }
+        doc.setDrawColor(200, 210, 230);
+        doc.line(margin, y, pageW - margin, y);
+        y += 5;
+      };
+
+      // Header
+      doc.setFillColor(37, 99, 235);
+      doc.rect(0, 0, pageW, 18, 'F');
+      doc.setFontSize(16);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(255, 255, 255);
+      doc.text('AI Interview Coach — Session Report', margin, 12);
+      y = 26;
+
+      addText(`Role: ${interview.role.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')}`, 12, true);
+      if (interview.programmingLanguage) addText(`Language: ${interview.programmingLanguage}`, 11);
+      addText(`Date: ${new Date(interview.date).toLocaleString()}`, 11);
+      if (interview.overallScore != null) addText(`Overall Score: ${interview.overallScore}/10`, 12, true, [37, 99, 235]);
+      y += 4;
+
+      interview.questions.forEach((q, i) => {
+        addDivider();
+        const qText = q.questionText.replace('[CODING_PROBLEM]', '[Coding] ').replace(/^\[Coding\]\s*/, '[Coding] ');
+        addText(`Q${i + 1}: ${qText}`, 11, true, [30, 64, 175]);
+        y += 2;
+        if (q.answerText && q.answerText !== VIDEO_ANSWER_PLACEHOLDER) {
+          addText(`Answer: ${q.answerText}`, 10);
+        }
+        if (q.codeAnswer) {
+          addText('Code Solution:', 10, true);
+          addText(q.codeAnswer, 9, false, [40, 40, 40]);
+        }
+        if (q.feedback) { y += 2; addText(`Feedback: ${q.feedback}`, 10, false, [21, 128, 61]); }
+        if (q.codeFeedback) { addText(`Code Feedback: ${q.codeFeedback}`, 10, false, [6, 95, 70]); }
+        const s = q.codeScore ?? q.score;
+        if (s != null) addText(`Score: ${s}/10`, 10, true, [37, 99, 235]);
+        if (q.wpm != null) addText(`Speaking Speed: ${q.wpm} WPM`, 10, false, [100, 60, 180]);
+        if (q.fillerWordsCount != null) addText(`Filler Words Detected: ${q.fillerWordsCount}`, 10, false, [180, 100, 20]);
+        y += 3;
+      });
+
+      if (interview.overallFeedback) {
+        addDivider();
+        addText('Overall Feedback', 12, true, [30, 30, 30]);
+        addText(interview.overallFeedback, 10);
+      }
+
+      doc.save(`interview-report-${interview._id}.pdf`);
+    } catch (err) {
+      console.error('PDF export failed:', err);
+      setError('Failed to generate PDF. Please try again.');
+    }
+  };
+
   const submitAnswer = async () => {
     if (!interview) return;
 
@@ -579,6 +932,8 @@ export default function InterviewPage() {
       const token = localStorage.getItem('token');
       const requestBody: any = {
         questionIndex: currentQuestionIndex,
+        ...(speechWpm != null ? { wpm: speechWpm } : {}),
+        ...(speechFillerCount != null ? { fillerWordsCount: speechFillerCount } : {}),
       };
 
       if (isCodingQuestion) {
@@ -717,6 +1072,54 @@ export default function InterviewPage() {
 
   const [showCodeInfo, setShowCodeInfo] = useState(false);
 
+  // Check if the current question has been answered based on the *latest* interview state
+  const isAnswered = !!(currentQuestion && isQuestionAnswered(currentQuestion));
+
+  // Reset timer on question change
+  useEffect(() => {
+    setTimeSpent(0);
+  }, [currentQuestionIndex]);
+
+  // Sync the answer state with the current question's answer (if it has one) or initialize with template
+  useEffect(() => {
+    if (currentQuestion) {
+      if (isCodingQuestion) {
+        if (currentQuestion.codeAnswer) {
+          setAnswer(currentQuestion.codeAnswer);
+        } else {
+          const lang = selectedCodingLanguage || interview?.programmingLanguage || 'javascript';
+          setAnswer(getDefaultCodeTemplate(lang));
+        }
+      } else {
+        setAnswer(currentQuestion.answerText || '');
+      }
+    } else {
+      setAnswer('');
+    }
+  }, [currentQuestionIndex, interview, isCodingQuestion, selectedCodingLanguage]);
+
+  // Sync the active left tab based on whether the question has been answered
+  useEffect(() => {
+    if (isAnswered) {
+      setActiveLeftTab('feedback');
+    } else {
+      setActiveLeftTab('problem');
+    }
+  }, [isAnswered, currentQuestionIndex]);
+
+  // Tick timer every second for active coding questions
+  useEffect(() => {
+    if (!isCodingQuestion || isGeneratingFeedback || loading || !interview || isAnswered) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      setTimeSpent((prev) => prev + 1);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [isCodingQuestion, isGeneratingFeedback, loading, interview, isAnswered, currentQuestionIndex]);
+
   if (loading && !interview) {
     return (
       <div className="min-h-screen bg-slate-100 flex flex-col justify-center items-center py-12 text-slate-800">
@@ -749,9 +1152,6 @@ export default function InterviewPage() {
     );
   }
 
-  // Check if the current question has been answered based on the *latest* interview state
-  const isAnswered = currentQuestion && isQuestionAnswered(currentQuestion);
-
   const codingQuestionText = isCodingQuestion ? currentQuestion?.questionText?.replace('[CODING_PROBLEM]', '').trim() : currentQuestion?.questionText;
 
   const programmingLanguages = [
@@ -782,6 +1182,50 @@ export default function InterviewPage() {
     <div className="min-h-screen bg-slate-100 relative" style={pageBackgroundStyle}>
       <div className="absolute inset-0 w-full h-full bg-white/80 z-0 pointer-events-none" />
       <div className="relative z-10 flex flex-col min-h-screen pb-8">
+        {/* Global Header Bar */}
+        <header className="w-full bg-white/95 backdrop-blur-md border-b border-slate-200 sticky top-0 z-30 transition-all duration-300">
+          <div className="max-w-[1600px] mx-auto px-4 md:px-6 py-3 flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => router.push('/')}
+                className="text-slate-500 hover:text-slate-800 transition-colors"
+                title="Back to home"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+                </svg>
+              </button>
+              <div className="flex flex-col">
+                <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest font-mono">AI Interview Coach</span>
+                <h1 className="text-sm font-extrabold text-slate-800 tracking-tight leading-tight">
+                  {interview.role.split('-').map((word) => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')} Session
+                </h1>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3">
+              {/* Question progress pill */}
+              <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-600">
+                <span className="w-2 h-2 rounded-full bg-blue-600"></span>
+                Question {currentQuestionIndex + 1} of {interview.questions.length}
+              </div>
+
+              {/* PDF Export Button */}
+              <button
+                type="button"
+                onClick={exportPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl text-xs font-bold shadow-md hover:shadow-lg transition-all duration-205"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Export Report PDF
+              </button>
+            </div>
+          </div>
+        </header>
+
         {isGeneratingFeedback && <LoadingAnimation />}
         {error && (
           <div className="max-w-4xl mx-auto w-full px-4 pt-4">
@@ -801,158 +1245,329 @@ export default function InterviewPage() {
           </div>
         )}
         {isCodingQuestion && currentQuestion ? (
-          <div className="max-w-7xl mx-auto w-full px-4 py-6 md:py-8 space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
-            {/* Left: Coding Problem */}
-            <div className="flex flex-col min-h-[420px] lg:min-h-[520px] p-6 md:p-8 overflow-y-auto bg-white border border-slate-200 rounded-2xl shadow-lg text-slate-900">
-              <div className="flex justify-between items-center mb-6">
-                <div className="flex items-center space-x-4">
-                  <h2 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-blue-700 px-4 py-2 rounded-lg text-white">
-                    Question {currentQuestionIndex + 1} of {interview.questions.length}
-                  </h2>
-                  {isAnswered ? (
-                    <span className={statusAnsweredClass}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+          <div className="max-w-[1600px] mx-auto w-full px-4 py-6 space-y-6">
+            <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-stretch">
+              {/* Left Panel: Problem or Feedback */}
+              <div className="xl:col-span-5 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-lg overflow-hidden text-slate-900">
+                <div className="flex border-b border-slate-200 bg-slate-50">
+                  <button
+                    type="button"
+                    onClick={() => setActiveLeftTab('problem')}
+                    className={`flex items-center gap-2 px-6 py-3.5 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                      activeLeftTab === 'problem'
+                        ? 'border-blue-600 text-blue-600 bg-white'
+                        : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/55'
+                    }`}
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    Problem Description
+                  </button>
+                  {isAnswered && (
+                    <button
+                      type="button"
+                      onClick={() => setActiveLeftTab('feedback')}
+                      className={`flex items-center gap-2 px-6 py-3.5 text-sm font-semibold transition-all duration-200 border-b-2 ${
+                        activeLeftTab === 'feedback'
+                          ? 'border-blue-600 text-blue-600 bg-white'
+                          : 'border-transparent text-slate-500 hover:text-slate-800 hover:bg-slate-100/55'
+                      }`}
+                    >
+                      <svg className="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 01-2 2h0a2 2 0 01-2-2v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
-                      Answered
-                    </span>
+                      Feedback & Score
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex-1 p-6 overflow-y-auto max-h-[580px] lg:max-h-[650px] min-h-[480px]">
+                  {activeLeftTab === 'problem' ? (
+                    <div>
+                      <div className="flex flex-wrap items-center gap-3 mb-6">
+                        <h2 className="text-2xl font-bold text-slate-800">
+                          Question {currentQuestionIndex + 1} of {interview.questions.length}
+                        </h2>
+                        <span className="px-2.5 py-1 bg-blue-50 border border-blue-100 text-blue-700 text-xs font-semibold rounded-full uppercase tracking-wider font-mono">
+                          {interview?.programmingLanguage || 'Coding'}
+                        </span>
+                        <span className="px-2.5 py-1 bg-indigo-50 border border-indigo-100 text-indigo-700 text-xs font-semibold rounded-full uppercase tracking-wider">
+                          Coding Problem
+                        </span>
+                        {isAnswered ? (
+                          <span className="px-2.5 py-1 bg-emerald-50 border border-emerald-100 text-emerald-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 block"></span>
+                            Answered
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-1 bg-amber-50 border border-amber-100 text-amber-700 text-xs font-semibold rounded-full flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 block animate-pulse"></span>
+                            Awaiting Solution
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="prose prose-slate max-w-none text-slate-700 leading-relaxed">
+                        <ReactMarkdown>{codingQuestionText || ''}</ReactMarkdown>
+                      </div>
+                    </div>
                   ) : (
-                    <span className={statusPendingClass}>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                      </svg>
-                      Unanswered
-                    </span>
+                    <div className="space-y-6">
+                      <div className="p-6 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-bold text-slate-500 uppercase tracking-wider">Evaluation Score</h4>
+                          <p className="text-xs text-slate-500 mt-1">Based on correctness, efficiency, and design.</p>
+                        </div>
+                        <div className="flex flex-col items-center justify-center bg-white border border-slate-200 rounded-xl p-4 shadow-sm min-w-[100px]">
+                          <span className="text-3xl font-extrabold text-blue-600">
+                            {currentQuestion?.codeScore ?? currentQuestion?.score ?? 0}
+                          </span>
+                          <span className="text-xs text-slate-400 font-bold border-t border-slate-100 mt-1 pt-1 w-full text-center">
+                            OUT OF 10
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Speech Metrics Display for Answered Coding Question */}
+                      {(currentQuestion?.wpm || currentQuestion?.fillerWordsCount) && (
+                        <div className="p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-xl space-y-2">
+                          <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Speech Recognition Metrics</h4>
+                          <div className="grid grid-cols-2 gap-4 pt-1">
+                            {currentQuestion.wpm && (
+                              <div className="bg-white/80 p-2.5 rounded-lg border border-blue-100/50">
+                                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">Speaking Speed</span>
+                                <span className="text-base font-extrabold text-blue-600">{currentQuestion.wpm} WPM</span>
+                              </div>
+                            )}
+                            {currentQuestion.fillerWordsCount !== undefined && currentQuestion.fillerWordsCount !== null && (
+                              <div className="bg-white/80 p-2.5 rounded-lg border border-blue-100/50">
+                                <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider font-mono">Filler Words</span>
+                                <span className="text-base font-extrabold text-indigo-600">{currentQuestion.fillerWordsCount}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {currentQuestion?.codeFeedback && (
+                        <div className="p-6 bg-emerald-50/50 border border-emerald-100 rounded-xl space-y-3">
+                          <h3 className="text-sm font-bold text-emerald-800 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Code Execution & Structure Feedback
+                          </h3>
+                          <div className="prose prose-sm prose-emerald max-w-none text-emerald-900">
+                            <ReactMarkdown>{currentQuestion.codeFeedback}</ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+
+                      {currentQuestion?.feedback && (
+                        <div className="p-6 bg-blue-50/50 border border-blue-100 rounded-xl space-y-3">
+                          <h3 className="text-sm font-bold text-blue-800 flex items-center gap-2">
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                            </svg>
+                            Conceptual & Logic Feedback
+                          </h3>
+                          <div className="prose prose-sm prose-blue max-w-none text-blue-900">
+                            <ReactMarkdown>{currentQuestion.feedback}</ReactMarkdown>
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   )}
                 </div>
               </div>
-              <h3 className="text-xl font-bold mb-4 text-blue-700 border-b border-slate-200 pb-3">Coding Problem</h3>
-              <div className="prose max-w-none text-gray-800">
-                {(() => {
-                  const questionText = currentQuestion?.questionText?.replace('[CODING_PROBLEM]', '').trim() || '';
-                  const parts = questionText.split(/```(\w+)?/);
-                  return parts.map((part, index) => {
-                    if (index % 2 === 1) {
-                      return (
-                        <pre key={index} className="bg-slate-100 p-4 rounded-lg my-4 overflow-x-auto border border-slate-200 text-slate-800">
-                          <code className="text-sm">{part}</code>
-                        </pre>
-                      );
-                    }
-                    return <p key={index} className="mb-4 leading-relaxed">{part}</p>;
-                  });
-                })()}
-              </div>
-            </div>
 
-            {/* Right: Code Editor */}
-            <div className="flex flex-col min-h-[420px] lg:min-h-[520px] p-6 md:p-8 bg-white border border-slate-200 rounded-2xl shadow-lg text-slate-900">
-              <label htmlFor="language-select" className="block text-sm font-medium text-slate-700 mb-2">
-                Programming Language
-              </label>
-              <select
-                id="language-select"
-                name="language-select"
-                className="input mb-6"
-                value={selectedCodingLanguage || interview?.programmingLanguage?.toLowerCase() || ''}
-                disabled
-              >
-                <option value="">{interview?.programmingLanguage || 'Select a language'}</option>
-              </select>
+              {/* Right Panel: Code Editor & Console */}
+              <div className="xl:col-span-7 flex flex-col bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden text-slate-200">
+                {/* Editor Header */}
+                <div className="flex justify-between items-center px-6 py-4 bg-slate-950 border-b border-slate-850">
+                  <div className="flex items-center space-x-3">
+                    <span className="text-xs text-slate-500 uppercase font-bold tracking-wider font-mono">
+                      solution.{getMonacoLanguage(selectedCodingLanguage || interview?.programmingLanguage || 'javascript') === 'cpp' ? 'cpp' : getMonacoLanguage(selectedCodingLanguage || interview?.programmingLanguage || 'javascript') === 'python' ? 'py' : 'js'}
+                    </span>
+                    <div className="flex items-center space-x-1.5">
+                      <span className="text-xs text-slate-600 font-medium font-sans">| Language:</span>
+                      <select
+                        className="bg-slate-900 border border-slate-800 rounded-lg text-slate-350 text-xs px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 font-semibold"
+                        value={selectedCodingLanguage || interview?.programmingLanguage?.toLowerCase() || ''}
+                        disabled
+                      >
+                        <option value="">{interview?.programmingLanguage || 'Select a language'}</option>
+                      </select>
+                    </div>
+                  </div>
 
-              <div className="flex-1 flex flex-col">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-xl font-semibold text-gray-800 flex items-center gap-2">
-                    Your Solution
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      className="ml-1 w-6 h-6 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-blue-400"
-                      title="Info"
+                      className="w-6 h-6 flex items-center justify-center rounded-full bg-slate-800 text-slate-400 hover:text-slate-250 hover:bg-slate-700 transition-colors text-xs font-bold"
+                      title="Code Info Tips"
                       onClick={() => setShowCodeInfo(true)}
-                      style={{ fontSize: '1rem', lineHeight: 1 }}
                     >
-                      i
+                      ?
                     </button>
-                  </h3>
-                  <div className="flex items-center space-x-2">
                     <button
-                      onClick={submitAnswer}
-                      className="btn btn-secondary text-sm"
-                      title="Submit code"
+                      type="button"
+                      onClick={resetCode}
+                      disabled={isGeneratingFeedback || isAnswered}
+                      className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-950 hover:bg-slate-850 disabled:opacity-50 text-slate-400 hover:text-slate-200 border border-slate-800 hover:border-slate-750 rounded-lg text-xs font-semibold transition-all duration-205"
+                      title="Reset code to default template"
                     >
-                      Submit Code
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 1121.21 8H18.235" />
+                      </svg>
+                      Reset Code
                     </button>
                   </div>
                 </div>
+
                 {showCodeInfo && (
-                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40">
-                    <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full border border-blue-200 relative">
+                  <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm">
+                    <div className="bg-slate-900 text-slate-100 rounded-2xl shadow-2xl p-6 max-w-sm w-full border border-slate-800 relative">
                       <button
-                        className="absolute top-2 right-2 text-gray-400 hover:text-gray-700 text-2xl font-bold"
+                        className="absolute top-3 right-3 text-slate-500 hover:text-slate-350 text-xl font-bold"
                         onClick={() => setShowCodeInfo(false)}
                         aria-label="Close"
                       >
-                        &times;
+                        ✕
                       </button>
                       <div className="flex items-center mb-3">
-                        <span className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-100 text-blue-700 mr-2 font-bold text-lg">i</span>
-                        <span className="text-lg font-semibold text-blue-700">Tip</span>
+                        <span className="w-8 h-8 flex items-center justify-center rounded-full bg-blue-900/40 text-blue-400 mr-2.5 font-bold text-base">i</span>
+                        <span className="text-lg font-bold text-blue-400">Coding Tip</span>
                       </div>
-                      <p className="text-gray-800">You can write both <span className="font-semibold text-blue-600">code</span> and <span className="font-semibold text-blue-600">theory</span> in the same section. The AI will consider each part on its own.<br/><span className='block mt-3 text-green-700 font-semibold'>Don't worry, just do your best and keep going!</span></p>
+                      <p className="text-slate-355 text-sm leading-relaxed">
+                        You can write both <span className="font-semibold text-blue-400">code</span> and <span className="font-semibold text-blue-400">theoretical comments</span> in the same file.
+                        The AI evaluator will evaluate your implementation details and logical structuring.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowCodeInfo(false)}
+                        className="mt-5 w-full py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-colors"
+                      >
+                        Got it
+                      </button>
                     </div>
                   </div>
                 )}
-                <textarea
-                  id="answer"
-                  name="answer"
-                  rows={20}
-                  className="input flex-1 font-mono text-base"
-                  value={answer}
-                  onChange={e => currentQuestion && setAnswer(e.target.value)}
-                  placeholder="Write your code here..."
-                  disabled={isGeneratingFeedback}
-                />
-              </div>
 
-            </div>
-            </div>
+                {/* Editor Container */}
+                <div className="flex-1 min-h-[420px] bg-slate-950 relative">
+                  <Editor
+                    height="100%"
+                    language={getMonacoLanguage(selectedCodingLanguage || interview?.programmingLanguage || 'javascript')}
+                    theme="vs-dark"
+                    value={answer}
+                    onChange={(val) => setAnswer(val || '')}
+                    onMount={handleEditorMount}
+                    loading={
+                      <div className="h-full flex items-center justify-center bg-slate-955 text-slate-500 font-mono text-sm">
+                        <div className="animate-pulse mr-2">⚡</div> Loading Editor...
+                      </div>
+                    }
+                    options={{
+                      autoClosingBrackets: 'always',
+                      autoClosingQuotes: 'always',
+                      autoClosingDelete: 'always',
+                      autoClosingOvertype: 'always',
+                      autoSurround: 'languageDefined',
+                      minimap: { enabled: false },
+                      lineNumbers: 'on',
+                      wordWrap: 'on',
+                      fontSize: 14,
+                      readOnly: isGeneratingFeedback || isAnswered,
+                      automaticLayout: true,
+                    }}
+                  />
+                </div>
 
-            {isAnswered && (
-              <div className="space-y-4">
-                {currentQuestion?.codeFeedback && (
-                  <div className="p-6 bg-emerald-50 border border-emerald-200 rounded-2xl shadow-sm">
-                    <h3 className="text-base font-semibold text-emerald-900 mb-3">Code feedback</h3>
-                    <div className="prose prose-sm max-w-none text-emerald-900">
-                      <ReactMarkdown>{currentQuestion.codeFeedback}</ReactMarkdown>
-                    </div>
+                {/* Collapsible Console */}
+                <div 
+                  className={`border-t border-slate-800 bg-slate-955 transition-all duration-350 ease-in-out overflow-hidden flex flex-col ${
+                    isConsoleOpen ? 'h-[180px]' : 'h-0'
+                  }`}
+                >
+                  <div className="flex justify-between items-center px-6 py-2 bg-slate-900 border-b border-slate-850">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider font-mono">Console Output</span>
+                    <button
+                      type="button"
+                      onClick={() => setIsConsoleOpen(false)}
+                      className="text-slate-500 hover:text-slate-350 text-xs font-bold font-mono"
+                    >
+                      ✕
+                    </button>
                   </div>
-                )}
-                {currentQuestion?.feedback && (
-                  <div className="p-6 bg-blue-50 border border-blue-200 rounded-2xl shadow-sm">
-                    <h3 className="text-base font-semibold text-blue-900 mb-3">Feedback</h3>
-                    <div className="prose prose-sm max-w-none text-blue-900">
-                      <ReactMarkdown>{currentQuestion.feedback}</ReactMarkdown>
-                    </div>
+                  <div className="flex-1 p-4 font-mono text-xs text-slate-350 overflow-y-auto whitespace-pre-wrap select-text selection:bg-blue-600/50">
+                    {consoleOutput || 'Click "Run Code" to compile and run your solution.'}
                   </div>
-                )}
-                {currentQuestion?.codeScore != null && (
-                  <div
-                    className={`inline-flex px-4 py-2 rounded-lg text-sm font-semibold text-white ${
-                      currentQuestion.codeScore >= 7
-                        ? 'bg-emerald-600'
-                        : currentQuestion.codeScore >= 4
-                          ? 'bg-amber-500'
-                          : 'bg-red-500'
-                    }`}
+                </div>
+
+                {/* Action Bar */}
+                <div className="flex justify-between items-center px-6 py-4 bg-slate-955 border-t border-slate-850">
+                  <button
+                    type="button"
+                    onClick={() => setIsConsoleOpen(!isConsoleOpen)}
+                    className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-200 transition-colors font-semibold"
                   >
-                    Code score: {currentQuestion.codeScore}/10
-                  </div>
-                )}
-              </div>
-            )}
+                    <span className="font-mono uppercase tracking-wider">Console</span>
+                    <svg 
+                      className={`w-3.5 h-3.5 transform transition-transform duration-200 ${isConsoleOpen ? 'rotate-180' : ''}`} 
+                      fill="none" 
+                      stroke="currentColor" 
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+                    </svg>
+                  </button>
 
-            <div className="flex flex-wrap justify-between gap-3 pt-2">
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={runCode}
+                      disabled={isRunningCode || isGeneratingFeedback}
+                      className="px-4 py-2 bg-slate-900 hover:bg-slate-850 disabled:opacity-50 text-slate-300 border border-slate-800 hover:border-slate-750 rounded-lg text-xs font-semibold transition-all duration-200 flex items-center gap-2"
+                    >
+                      {isRunningCode ? (
+                        <>
+                          <svg className="animate-spin h-3.5 w-3.5 text-blue-500" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Running...
+                        </>
+                      ) : (
+                        'Run Code'
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={submitAnswer}
+                      disabled={isGeneratingFeedback || isAnswered || !answer.trim()}
+                      className="px-5 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-blue-900 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow-md transition-all duration-200 flex items-center gap-2"
+                    >
+                      {isGeneratingFeedback ? (
+                        <>
+                          <svg className="animate-spin h-3.5 w-3.5 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                          Submitting...
+                        </>
+                      ) : (
+                        'Submit Solution'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Navigation */}
+            <div className="flex flex-wrap justify-between gap-3 pt-4 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setCurrentQuestionIndex((prev) => Math.max(0, prev - 1))}
@@ -963,11 +1578,11 @@ export default function InterviewPage() {
               </button>
               {interview.questions.every(isQuestionAnswered) ? (
                 <button type="button" onClick={() => router.push('/')} className="btn btn-primary">
-                  Finish interview
+                  Finish Interview
                 </button>
               ) : (
                 <button type="button" onClick={nextQuestion} className="btn btn-secondary">
-                  Next question
+                  Next Question
                 </button>
               )}
             </div>
@@ -1188,6 +1803,31 @@ export default function InterviewPage() {
                             </div>
                           </div>
 
+                          {/* Live Speech Metrics Card */}
+                          {(speechWpm !== null || speechFillerCount !== null) && (
+                            <div className="w-full mt-4 p-4 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-100 rounded-2xl shadow-sm flex items-center justify-around text-slate-800 animate-fadeIn">
+                              {speechWpm !== null && (
+                                <div className="text-center">
+                                  <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider font-mono">Speaking Speed</span>
+                                  <span className="text-xl font-extrabold text-blue-600">{speechWpm} WPM</span>
+                                  <span className="block text-[9px] text-slate-500 mt-0.5">
+                                    {speechWpm < 110 ? 'Pace: Slow' : speechWpm > 150 ? 'Pace: Fast' : 'Pace: Optimal'}
+                                  </span>
+                                </div>
+                              )}
+                              <div className="w-px h-8 bg-slate-200" />
+                              {speechFillerCount !== null && (
+                                <div className="text-center">
+                                  <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider font-mono">Filler Words</span>
+                                  <span className="text-xl font-extrabold text-indigo-600">{speechFillerCount}</span>
+                                  <span className="block text-[9px] text-slate-500 mt-0.5">
+                                    {speechFillerCount === 0 ? 'Perfect clarity!' : speechFillerCount > 5 ? 'High count' : 'Normal'}
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
                           <div className="flex flex-col sm:flex-row gap-4 mt-6 w-full justify-center">
                             <button
                               type="button"
@@ -1269,6 +1909,22 @@ export default function InterviewPage() {
                       >
                         {currentQuestion.score}/10
                       </span>
+                    </div>
+                  )}
+                  {(currentQuestion?.wpm || currentQuestion?.fillerWordsCount) && (
+                    <div className="px-6 py-4 border-t border-slate-200 bg-slate-50/50 flex flex-wrap items-center gap-6">
+                      {currentQuestion.wpm && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-mono">Speaking Speed:</span>
+                          <span className="text-sm font-extrabold text-blue-650">{currentQuestion.wpm} WPM</span>
+                        </div>
+                      )}
+                      {currentQuestion.fillerWordsCount !== undefined && currentQuestion.fillerWordsCount !== null && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider font-mono">Filler Words:</span>
+                          <span className="text-sm font-extrabold text-indigo-600">{currentQuestion.fillerWordsCount}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
