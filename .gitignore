@@ -1,2 +1,22 @@
 node_modules/
 dist/
+
+# Environment variables
+.env
+.env.local
+.env.*
+!.env.example
+!.env.local.example
+
+# Certificates and keys
+*.pem
+*.key
+
+# IDE configs
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

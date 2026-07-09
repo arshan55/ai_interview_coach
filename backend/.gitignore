@@ -4,3 +4,8 @@
 # build artifacts
 /dist
 /build 
+
+# Environment variables
+.env
+.env.*
+!.env.example
