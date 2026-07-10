@@ -291,32 +291,28 @@ npm install
 
 #### 2.3 Environment Configuration
 
-Create a `.env` file in the backend directory with the following variables:
+Create a `.env` file in the backend directory. Refer to `.env.example` for all available configuration options:
 
-```env
-# MongoDB Configuration
-MONGODB_URI=mongodb://localhost:27017/interview_coach
-# For MongoDB Atlas: mongodb+srv://username:password@cluster.mongodb.net/dbname
+```bash
+# Copy the example file
+cp .env.example .env
 
-# Server Configuration
-PORT=5000
-NODE_ENV=development
-
-# JWT Configuration
-JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
-JWT_EXPIRE=7d
-
-# Google OAuth Configuration
-GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your_google_client_secret
-
-# CORS Configuration
-FRONTEND_URL=http://localhost:3000
-
-# AI/LLM Configuration (if applicable)
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_MODEL=gpt-4
+# Then update with your actual values:
+# - MongoDB connection string
+# - JWT secret key
+# - OAuth credentials
+# - API keys and secrets
 ```
+
+**Required Variables:**
+- `MONGODB_URI` - MongoDB connection string
+- `PORT` - Server port
+- `JWT_SECRET` - Secret key for JWT signing
+- `FRONTEND_URL` - Frontend application URL
+
+**Optional Variables:**
+- Google OAuth credentials (for OAuth integration)
+- OpenAI API key (for AI features)
 
 #### 2.4 Configure MongoDB
 
@@ -360,18 +356,21 @@ npm install
 
 #### 3.3 Environment Configuration
 
-Create a `.env.local` file in the frontend directory:
+Create a `.env.local` file in the frontend directory. Refer to `.env.example` for configuration options:
 
-```env
-# Backend API Configuration
-NEXT_PUBLIC_BACKEND_URL=http://localhost:5000
+```bash
+# Copy the example file
+cp .env.example .env.local
 
-# Google OAuth (from Google Cloud Console)
-NEXT_PUBLIC_GOOGLE_CLIENT_ID=your_google_client_id.apps.googleusercontent.com
-
-# Application Environment
-NEXT_PUBLIC_ENV=development
+# Then update with your actual values:
+# - Backend API URL
+# - Google OAuth Client ID
+# - Environment mode
 ```
+
+**Required Variables:**
+- `NEXT_PUBLIC_BACKEND_URL` - Backend API URL
+- `NEXT_PUBLIC_ENV` - Environment mode (development/production)
 
 #### 3.4 Start Frontend Server
 ```bash
@@ -380,374 +379,93 @@ npm run dev
 
 The frontend will be available at `http://localhost:3000`
 
-### Step 4: Google OAuth Setup (Optional but Recommended)
+### Step 4: Google OAuth Setup (Optional)
 
-1. **Create OAuth Credentials:**
-   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+To enable Google OAuth authentication:
+
+1. **Create OAuth Credentials** in Google Cloud Console:
    - Create a new project
-   - Go to "Credentials" → "Create Credentials" → "OAuth 2.0 Client ID"
-   - Choose "Web application"
-   - Add authorized URIs:
-     - `http://localhost:3000`
-     - `http://localhost:3000/api/auth/google/callback`
+   - Generate OAuth 2.0 Client ID credentials
+   - Configure authorized URIs for your application
 
-2. **Add Credentials to `.env` files:**
-   - Frontend: `NEXT_PUBLIC_GOOGLE_CLIENT_ID`
-   - Backend: `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`
+2. **Store Credentials Securely**:
+   - Add credentials to backend `.env`
+   - Add public credentials to frontend `.env.local`
+   - Never commit credentials to version control
+
+3. **Configure Callback URLs**:
+   - Update authorized redirect URIs in Google Cloud Console
+   - Match your development and production URLs
+
+For detailed OAuth setup instructions, see [OAuth Configuration Guide](./docs/OAUTH.md)
 
 ### Verification Checklist
 
 - [ ] MongoDB is running and accessible
-- [ ] Backend server starts without errors on port 5000
-- [ ] Frontend server starts without errors on port 3000
-- [ ] Can access `http://localhost:3000` in browser
-- [ ] Backend API responds at `http://localhost:5000/api/health`
-- [ ] Google OAuth credentials are configured (optional)
+- [ ] Backend server starts without errors
+- [ ] Frontend server starts without errors
+- [ ] Application loads in browser
+- [ ] Able to navigate to login/registration pages
 
 ## 🔌 API Documentation
 
-### Base URL
-```
-Development: http://localhost:5000
-Production: https://api.interviewcoach.com (example)
-```
+For detailed API documentation including request/response examples, authentication details, and endpoint specifications, please refer to the dedicated [API Documentation](./docs/API.md).
+
+### Quick API Overview
+
+The backend provides a RESTful API with the following main endpoint categories:
+
+- **Authentication** - User registration, login, and OAuth integration
+- **Interviews** - CRUD operations for interview sessions
+- **Users** - User profile and statistics management
+- **Questions** - Interview question management
 
 ### Authentication
 
-All endpoints require a JWT token (except auth endpoints) in the Authorization header:
+All protected endpoints require a JWT token in the Authorization header:
 
 ```bash
-Authorization: Bearer <your_jwt_token>
+Authorization: Bearer <JWT_TOKEN>
 ```
 
-### 🔐 Authentication Endpoints
+### Main Endpoints
 
-#### Register New User
-```
-POST /api/auth/register
-Content-Type: application/json
+| Category | Method | Endpoint | Auth Required |
+|----------|--------|----------|---|
+| **Auth** | POST | `/api/auth/register` | ❌ |
+| **Auth** | POST | `/api/auth/login` | ❌ |
+| **Auth** | GET | `/api/auth/google` | ❌ |
+| **Auth** | GET | `/api/auth/user` | ✅ |
+| **Interviews** | GET | `/api/interviews` | ✅ |
+| **Interviews** | POST | `/api/interviews` | ✅ |
+| **Interviews** | GET | `/api/interviews/:id` | ✅ |
+| **Interviews** | PUT | `/api/interviews/:id` | ✅ |
+| **Interviews** | DELETE | `/api/interviews/:id` | ✅ |
+| **Users** | GET | `/api/users/:id` | ✅ |
+| **Users** | PUT | `/api/users/:id` | ✅ |
+| **Users** | GET | `/api/users/:id/statistics` | ✅ |
 
-{
-  "email": "user@example.com",
-  "password": "securePassword123",
-  "firstName": "John",
-  "lastName": "Doe"
-}
+### Error Response Format
 
-Response (201):
-{
-  "success": true,
-  "token": "jwt_token_here",
-  "user": {
-    "id": "userId",
-    "email": "user@example.com",
-    "firstName": "John",
-    "lastName": "Doe"
-  }
-}
-```
-
-#### Login
-```
-POST /api/auth/login
-Content-Type: application/json
-
-{
-  "email": "user@example.com",
-  "password": "securePassword123"
-}
-
-Response (200):
-{
-  "success": true,
-  "token": "jwt_token_here",
-  "user": { /* user object */ }
-}
-```
-
-#### Google OAuth Login Initiate
-```
-GET /api/auth/google
-
-Redirects to Google login page
-```
-
-#### Google OAuth Callback
-```
-GET /api/auth/google/callback?code=auth_code
-
-Response (302 redirect with token):
-Redirects to frontend with token in query: http://localhost:3000?token=jwt_token
-```
-
-#### Get Current User Profile
-```
-GET /api/auth/user
-Headers: Authorization: Bearer <token>
-
-Response (200):
-{
-  "id": "userId",
-  "email": "user@example.com",
-  "firstName": "John",
-  "lastName": "Doe",
-  "profileImage": "url_or_null",
-  "createdAt": "2024-01-15T10:00:00Z",
-  "statistics": {
-    "totalInterviews": 5,
-    "averageScore": 78.5,
-    "totalTimeSpent": 3600
-  }
-}
-```
-
-#### Logout
-```
-POST /api/auth/logout
-Headers: Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "message": "Logged out successfully"
-}
-```
-
-### 📝 Interview Endpoints
-
-#### Get All Interviews for User
-```
-GET /api/interviews
-Headers: Authorization: Bearer <token>
-
-Query Parameters:
-- role: frontend|backend|fullstack (optional filter)
-- status: completed|in-progress (optional filter)
-- limit: number (default: 10)
-- page: number (default: 1)
-
-Response (200):
-{
-  "success": true,
-  "data": [
-    {
-      "id": "interviewId",
-      "userId": "userId",
-      "role": "frontend",
-      "questions": ["q1", "q2", "q3"],
-      "score": 85,
-      "status": "completed",
-      "startTime": "2024-01-15T10:00:00Z",
-      "endTime": "2024-01-15T11:00:00Z",
-      "duration": 3600,
-      "feedback": "Good performance..."
-    }
-  ],
-  "pagination": {
-    "page": 1,
-    "limit": 10,
-    "total": 25
-  }
-}
-```
-
-#### Create New Interview
-```
-POST /api/interviews
-Headers: Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "role": "frontend",
-  "difficulty": "intermediate",
-  "questionCount": 5
-}
-
-Response (201):
-{
-  "success": true,
-  "data": {
-    "id": "newInterviewId",
-    "role": "frontend",
-    "questions": [/* array of questions */],
-    "status": "in-progress",
-    "startTime": "2024-01-15T10:00:00Z"
-  }
-}
-```
-
-#### Get Interview Details
-```
-GET /api/interviews/:id
-Headers: Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "data": {
-    "id": "interviewId",
-    "role": "frontend",
-    "questions": [/* questions array */],
-    "responses": [/* user responses */],
-    "score": 85,
-    "status": "completed",
-    "feedback": "Detailed feedback..."
-  }
-}
-```
-
-#### Submit Answer to Question
-```
-POST /api/interviews/:id/answer
-Headers: Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "questionId": "questionId",
-  "answer": "User's response text",
-  "timeSpent": 120
-}
-
-Response (200):
-{
-  "success": true,
-  "data": {
-    "responseId": "responseId",
-    "questionId": "questionId",
-    "aiEvaluation": {
-      "score": 80,
-      "correctness": "Good",
-      "feedback": "Your answer covers...",
-      "suggestions": ["Consider...", "You could improve..."],
-      "comparisonScore": 85
-    }
-  }
-}
-```
-
-#### Update Interview (Save Progress)
-```
-PUT /api/interviews/:id
-Headers: Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "status": "in-progress"
-}
-
-Response (200):
-{
-  "success": true,
-  "data": { /* updated interview */ }
-}
-```
-
-#### End Interview
-```
-POST /api/interviews/:id/end
-Headers: Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "data": {
-    "interviewId": "interviewId",
-    "finalScore": 82,
-    "status": "completed",
-    "completedAt": "2024-01-15T11:00:00Z"
-  }
-}
-```
-
-#### Delete Interview
-```
-DELETE /api/interviews/:id
-Headers: Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "message": "Interview deleted successfully"
-}
-```
-
-### 👥 User Endpoints
-
-#### Get User Profile
-```
-GET /api/users/:id
-Headers: Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "data": { /* user profile */ }
-}
-```
-
-#### Update User Profile
-```
-PUT /api/users/:id
-Headers: Authorization: Bearer <token>
-Content-Type: application/json
-
-{
-  "firstName": "Jane",
-  "lastName": "Doe",
-  "profileImage": "image_url"
-}
-
-Response (200):
-{
-  "success": true,
-  "data": { /* updated user */ }
-}
-```
-
-#### Get User Statistics
-```
-GET /api/users/:id/statistics
-Headers: Authorization: Bearer <token>
-
-Response (200):
-{
-  "success": true,
-  "data": {
-    "totalInterviews": 15,
-    "completedInterviews": 12,
-    "averageScore": 76.5,
-    "highestScore": 92,
-    "lowestScore": 65,
-    "totalTimeSpent": 7200,
-    "roleStatistics": {
-      "frontend": { "count": 5, "avgScore": 78 },
-      "backend": { "count": 4, "avgScore": 75 },
-      "fullstack": { "count": 3, "avgScore": 76 }
-    }
-  }
-}
-```
-
-### Error Handling
-
-All endpoints return errors in this format:
+All error responses follow a standard format:
 
 ```json
 {
   "success": false,
   "error": {
     "code": "ERROR_CODE",
-    "message": "Human readable error message"
+    "message": "Error description"
   }
 }
 ```
 
-Common HTTP Status Codes:
+### HTTP Status Codes
+
 - `200` - Success
 - `201` - Created
 - `400` - Bad Request
-- `401` - Unauthorized (missing or invalid token)
-- `403` - Forbidden (insufficient permissions)
+- `401` - Unauthorized
+- `403` - Forbidden
 - `404` - Not Found
 - `500` - Server Error
 
