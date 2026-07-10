@@ -44,6 +44,10 @@ const QuestionSchema = new mongoose.Schema({
   fillerWordsCount: {
     type: Number,
     default: null
+  },
+  topic: {
+    type: String,
+    default: null
   }
 });
 

@@ -6,6 +6,7 @@ const { check, validationResult } = require('express-validator');
 const auth = require('../../middleware/auth'); // Assuming you'll have auth middleware
 const Interview = require('../../models/Interview');
 const User = require('../../models/User'); // Add User model import
+const QuestionBank = require('../../models/QuestionBank');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
 // Gemini — override with GOOGLE_AI_MODEL in .env (e.g. gemini-2.5-flash, gemini-1.5-flash)
@@ -22,124 +23,7 @@ const getGeminiModel = () => {
 
 console.log(`Interviews route using Gemini model: ${GEMINI_MODEL}`);
 
-// Helper function to generate prompt from interview history
-const generatePrompt = (interview) => {
-  let prompt = "You are an AI interviewer conducting a job interview. Ask one question at a time. The interview should consist of exactly 5 questions. After the user provides an answer, provide constructive feedback on their answer, give a score out of 10 for that answer, and then ask the next question. You can sometimes ask a coding problem for technical roles. If you ask a coding problem, start the question text with [CODING_PROBLEM].\n\n";
-
-  // Add role and programming language context
-  prompt += `The candidate is interviewing for a ${interview.role.replace('-', ' ')} position.`;
-  if (interview.programmingLanguage) {
-    prompt += ` The preferred programming language is ${interview.programmingLanguage}.`;
-  }
-  prompt += '\n\n';
-
-  if (interview.questions && interview.questions.length > 0) {
-    interview.questions.forEach((q, index) => {
-      prompt += `Question ${index + 1}: ${q.questionText}\n`;
-      if (q.answerText) {
-        prompt += `Your Answer: ${q.answerText}\n`;
-      }
-      if (q.codeAnswer) {
-        prompt += `Your Code Answer (in ${q.programmingLanguage}):\n\`\`\`${q.programmingLanguage}\n${q.codeAnswer}\n\`\`\`\n`;
-      }
-      if (q.feedback) {
-        prompt += `Feedback on Answer ${index + 1}: ${q.feedback}\n`;
-      }
-       if (q.score !== undefined && q.score !== null) {
-        prompt += `Score on Answer ${index + 1}: ${q.score}/10\n`;
-      }
-      if (q.codeFeedback) {
-        prompt += `Code Feedback on Answer ${index + 1}: ${q.codeFeedback}\n`;
-      }
-       if (q.codeScore !== undefined && q.codeScore !== null) {
-        prompt += `Code Score on Answer ${index + 1}: ${q.codeScore}/10\n`;
-      }
-    });
-
-    // Add the latest answer/code if available in the last question before asking for feedback/next question
-     const lastQ = interview.questions[interview.questions.length -1];
-     if((lastQ.answerText && !lastQ.feedback) || (lastQ.codeAnswer && !lastQ.codeFeedback)) { // Only add if answer submitted but no feedback yet
-        if(lastQ.answerText) prompt += `Your Answer: ${lastQ.answerText}\n`;
-        if(lastQ.codeAnswer) prompt += `Your Code Answer (in ${lastQ.programmingLanguage}):\n\`\`\`${lastQ.programmingLanguage}\n${lastQ.codeAnswer}\n\`\`\`\n`;
-     }
-
-    // Instruct AI on how to respond based on the last question type
-    if (lastQ.questionText.startsWith('[CODING_PROBLEM]')) {
-        prompt += "\nBased on the above history, specifically the last coding question and code answer, provide constructive feedback on the code, give a score out of 10 for the code, and then ask the next question. If the next question is also a coding problem, start its text with [CODING_PROBLEM]. Format your response strictly as follows: Feedback: [Feedback on conceptual understanding of the problem]\nScore: [Score out of 10 for conceptual understanding]\nCode Feedback: [Feedback on the submitted code]\nCode Score: [Score out of 10 for the code]\nNext Question: [Your next question here]";
-    } else {
-        prompt += "\nBased on the above history, specifically the last question and answer, provide constructive feedback on their answer, give a score out of 10 for that answer, and then ask the next question. If the next question is a coding problem, start its text with [CODING_PROBLEM]. Format your response strictly as follows: Feedback: [Your feedback here]\nScore: [Score out of 10]\nNext Question: [Your next question here]";
-    }
-
-  } else {
-    // Initial prompt for the first question
-    prompt += `Start the interview by asking the first question for the selected role. The interview should consist of exactly 5 questions in total. 
-    For the first question, choose one of these approaches based on the role:
-    - For technical roles (software-engineer, frontend-developer, backend-developer, data-scientist, devops-engineer): 
-      * Choose ONE of these categories randomly:
-        - Data Structures & Algorithms:
-          * Array/List manipulation (e.g., finding duplicates, merging sorted arrays)
-          * Tree/Binary Search Tree operations
-          * Graph algorithms (e.g., BFS, DFS, shortest path)
-          * Dynamic programming problems
-          * Sorting and searching algorithms
-        - System Design:
-          * API design and RESTful principles
-          * Database schema design
-          * Caching strategies
-          * Microservices architecture
-          * Scalability considerations
-        - Problem Solving:
-          * Debugging scenarios
-          * Performance optimization
-          * Memory management
-          * Concurrency issues
-          * Error handling
-        - Language-specific Features:
-          * Async/await patterns
-          * Design patterns
-          * Memory management
-          * Type systems
-          * Testing strategies
-      * If it's a coding problem, start its text with [CODING_PROBLEM]
-      * Make sure to vary the difficulty and topic each time
-      * Avoid common beginner questions like string reversal or palindrome checks
-    
-    - For product-manager:
-      * Choose ONE of these categories randomly:
-        - Product Strategy:
-          * Market analysis and competitive positioning
-          * Feature prioritization frameworks
-          * Product roadmap planning
-          * Go-to-market strategies
-          * Product lifecycle management
-        - User Experience:
-          * User research methodologies
-          * Usability testing
-          * User journey mapping
-          * A/B testing strategies
-          * User feedback analysis
-        - Technical Product:
-          * API design and documentation
-          * Technical requirements gathering
-          * System integration planning
-          * Technical debt management
-          * Performance metrics
-        - Business Impact:
-          * Key metrics and KPIs
-          * ROI analysis
-          * Cost-benefit analysis
-          * Market sizing
-          * Revenue models
-      * Make sure to vary the scenario and context each time
-      * never ask coding questions for product manager role
-    
-    Make sure the first question is relevant to the role and demonstrates the candidate's expertise.
-    Use wide variety of first questions to keep interviews fresh every time.
-    Respond using the exact format: Feedback: [Initial feedback or greeting]\nScore: [N/A]\nNext Question: [Your first question here]`;
-  }
-
-  return prompt;
-};
+// Helper function to check if the error is due to quota/rate limits
 
 const isQuotaOrRateLimitError = (error) =>
   error?.status === 429 ||
@@ -249,6 +133,63 @@ const sanitizeInterviewForResponse = (interview) => {
     });
   }
   return doc;
+};
+
+const getUserPastQuestionTexts = async (userId) => {
+  try {
+    const userInterviews = await Interview.find({ user: userId }).select('questions.questionText');
+    const pastQuestionTexts = [];
+    userInterviews.forEach(interview => {
+      if (interview.questions) {
+        interview.questions.forEach(q => {
+          if (q.questionText) {
+            pastQuestionTexts.push(q.questionText);
+          }
+        });
+      }
+    });
+    return [...new Set(pastQuestionTexts)];
+  } catch (err) {
+    console.error('Error in getUserPastQuestionTexts:', err.message);
+    return [];
+  }
+};
+
+const selectNextQuestion = async (userId, role, targetDifficulty, excludedQuestionTexts, excludedTopics) => {
+  try {
+    // Basic query matching role and difficulty, excluding already asked question texts
+    let query = {
+      role: role,
+      difficulty: targetDifficulty,
+      questionText: { $nin: excludedQuestionTexts }
+    };
+
+    if (excludedTopics && excludedTopics.length > 0) {
+      query.topic = { $nin: excludedTopics };
+    }
+
+    // Try finding matching question with topic exclusion
+    let nextQuestion = await QuestionBank.findOne(query);
+
+    // Fallback 1: If no question matching the topic constraint is found, loosen topic constraint
+    if (!nextQuestion && excludedTopics && excludedTopics.length > 0) {
+      delete query.topic;
+      nextQuestion = await QuestionBank.findOne(query);
+    }
+
+    // Fallback 2: If still no question is found, loosen difficulty constraint (try any difficulty for this role)
+    if (!nextQuestion) {
+      nextQuestion = await QuestionBank.findOne({
+        role: role,
+        questionText: { $nin: excludedQuestionTexts }
+      });
+    }
+
+    return nextQuestion;
+  } catch (err) {
+    console.error('Error in selectNextQuestion:', err.message);
+    return null;
+  }
 };
 
 const formatFeedbackText = (raw) => {
@@ -369,19 +310,25 @@ router.post(
         return res.status(400).json({ error: 'Role is required' });
       }
 
-      // Generate the first question using Gemini API with retry logic
-      const prompt = generatePrompt({ questions: [], role, programmingLanguage });
-      const result = await retryGenerateContent(prompt); // Use retry helper
-      const responseText = result.response.text();
+      // Retrieve the user's past question texts to avoid repeat questions
+      const userPastQuestions = await getUserPastQuestionTexts(req.user.id);
 
-      console.log('Raw AI response for first question:\n', responseText);
+      // Select first question from QuestionBank (difficulty 'easy')
+      const firstQuestionObj = await selectNextQuestion(
+        req.user.id,
+        role,
+        'easy',
+        userPastQuestions,
+        []
+      );
 
-      // Parse the response to get the first question and initial feedback
-      const feedbackMatch = responseText.match(/Feedback:\s*(.*?)(?:\n|$)/i);
-      const nextQuestionMatch = responseText.match(/Next Question:\s*(.+?)\s*$/im); // Modified regex
+      if (!firstQuestionObj) {
+        return res.status(404).json({ error: 'No questions found in the Question Bank for this role.' });
+      }
 
-      const initialFeedback = feedbackMatch ? feedbackMatch[1].trim() : 'Welcome to your interview practice!';
-      const firstQuestionText = nextQuestionMatch && nextQuestionMatch[1] ? nextQuestionMatch[1].trim() : 'Could not generate the first question.';
+      const firstQuestionText = firstQuestionObj.questionText;
+      const topic = firstQuestionObj.topic;
+      const initialFeedback = 'Welcome to your interview practice! Let\'s begin.';
 
       const newInterview = new Interview({
         user: req.user.id,
@@ -392,6 +339,7 @@ router.post(
           answerText: null,
           feedback: initialFeedback,
           score: null,
+          topic: topic
         }],
         date: new Date()
       });
@@ -559,32 +507,48 @@ Overall Feedback: [your feedback]`;
 
     await interview.save();
 
-    // If this is not the last question and less than 5 questions, generate and add the next question
+    // If this is not the last question and less than 5 questions, select and add the next question
     if (interview.questions.length < 5) { // Ensure total questions is less than 5
       try {
-        // Generate prompt for the next question based on the updated interview history
-        const nextQuestionPrompt = generatePrompt(interview);
-        const nextQuestionResult = await retryGenerateContent(nextQuestionPrompt); // Use retry helper
-        const nextQuestionResponse = await nextQuestionResult.response; // Get the response object
-        const nextQuestionResponseText = nextQuestionResponse.text(); // Get the text from the response
+        const nextIndex = interview.questions.length;
+        let targetDifficulty = 'medium';
+        if (nextIndex >= 3) {
+          targetDifficulty = 'hard';
+        }
 
-        console.log('Raw AI response for next question:\n', nextQuestionResponseText);
+        // Gather excluded questions (current interview + past interviews) to prevent duplicates
+        const currentQuestionTexts = interview.questions.map(q => q.questionText);
+        const pastQuestionTexts = await getUserPastQuestionTexts(req.user.id);
+        const excludedQuestionTexts = [...new Set([...currentQuestionTexts, ...pastQuestionTexts])];
 
-        // Parse the response to get the next question text
-        const nextQuestionMatch = nextQuestionResponseText.match(/Next Question:\s*(.+?)\s*$/im); // Modified regex
-        const nextQuestionText = nextQuestionMatch && nextQuestionMatch[1] ? nextQuestionMatch[1].trim() : 'Could not generate the next question.';
+        // Gather excluded topics to ensure diversity
+        const excludedTopics = interview.questions.map(q => q.topic).filter(Boolean);
+
+        // Select the question from the QuestionBank
+        const nextQuestionObj = await selectNextQuestion(
+          req.user.id,
+          interview.role,
+          targetDifficulty,
+          excludedQuestionTexts,
+          excludedTopics
+        );
+
+        if (!nextQuestionObj) {
+          throw new Error('No available questions found in the Question Bank matching the criteria.');
+        }
 
         // Create and add the new question to the interview
         const newQuestion = {
-              questionText: nextQuestionText,
-              answerText: null,
-              feedback: null,
-              score: null,
+          questionText: nextQuestionObj.questionText,
+          answerText: null,
+          feedback: null,
+          score: null,
           codeAnswer: null,
           programmingLanguage: null,
           codeFeedback: null,
           codeScore: null,
           audioAnswer: null,
+          topic: nextQuestionObj.topic
         };
         interview.questions.push(newQuestion);
 
@@ -592,20 +556,20 @@ Overall Feedback: [your feedback]`;
         await interview.save();
 
       } catch (generateErr) {
-        console.error('Error generating and adding next question after retries:', generateErr.message);
-        // If AI generation fails after retries, add a placeholder question
-         interview.questions.push({
-            questionText: 'Could not generate the next question.',
-            answerText: null,
-            feedback: 'Failed to generate feedback or next question due to an issue with the AI service. Please continue with the next question or try again later.',
-            score: null,
-            codeAnswer: null,
-            programmingLanguage: null,
-            codeFeedback: null,
-            codeScore: null,
-            audioAnswer: null,
-         });
-         await interview.save();
+        console.error('Error selecting next question from QuestionBank:', generateErr.message);
+        // If question selection fails, add a placeholder question
+        interview.questions.push({
+          questionText: 'Could not generate the next question.',
+          answerText: null,
+          feedback: 'Failed to select next question from Question Bank due to database unavailability. Please try again later.',
+          score: null,
+          codeAnswer: null,
+          programmingLanguage: null,
+          codeFeedback: null,
+          codeScore: null,
+          audioAnswer: null,
+        });
+        await interview.save();
       }
     }
 
