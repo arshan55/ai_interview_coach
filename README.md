@@ -899,7 +899,8 @@ This project is licensed under the MIT License - see [LICENSE](LICENSE) file for
 ## 📞 Support & Contact
 
 - **Issues** - [GitHub Issues](https://github.com/arshan55/ai_interview_coach/issues)
-- **Email** - [contact email]
+- **Email** - kunalps6266@gmail.com
+- **GitHub** - [@kunalp-singh](https://github.com/kunalp-singh)
 - **Documentation** - [Full Docs](./docs)
 - **Discord** - [Community Server]
 
