@@ -6,8 +6,15 @@ const { check, validationResult } = require('express-validator');
 const auth = require('../../middleware/auth'); // Assuming you'll have auth middleware
 const Interview = require('../../models/Interview');
 const User = require('../../models/User'); // Add User model import
-const QuestionBank = require('../../models/QuestionBank');
+const {
+  questionIdentityKeys,
+  questionTopics,
+  selectBestQuestion,
+} = require('../../services/questionRetrieval');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
+const embeddingsService = require('../../services/embeddingsService');
+const CodingProblemDetails = require('../../models/CodingProblemDetails');
+const QuestionBank = require('../../models/QuestionBank');
 
 // Gemini — override with GOOGLE_AI_MODEL in .env (e.g. gemini-2.5-flash, gemini-1.5-flash)
 const GEMINI_MODEL = process.env.GOOGLE_AI_MODEL || 'gemini-2.5-flash';
@@ -135,60 +142,40 @@ const sanitizeInterviewForResponse = (interview) => {
   return doc;
 };
 
-const getUserPastQuestionTexts = async (userId) => {
+const getUserPastQuestionHistory = async (userId) => {
   try {
-    const userInterviews = await Interview.find({ user: userId }).select('questions.questionText');
+    const userInterviews = await Interview.find({ user: userId }).select('questions.questionId questions.questionText questions.topic questions.title questions.link');
     const pastQuestionTexts = [];
+    const pastTopics = [];
+    const seenKeys = [];
     userInterviews.forEach(interview => {
       if (interview.questions) {
         interview.questions.forEach(q => {
           if (q.questionText) {
             pastQuestionTexts.push(q.questionText);
           }
+            if (q.questionId) {
+              seenKeys.push(String(q.questionId).toLowerCase().trim());
+            }
+          if (q.topic) {
+            pastTopics.push(q.topic);
+          }
+          seenKeys.push(...questionIdentityKeys(q));
         });
       }
     });
-    return [...new Set(pastQuestionTexts)];
-  } catch (err) {
-    console.error('Error in getUserPastQuestionTexts:', err.message);
-    return [];
-  }
-};
-
-const selectNextQuestion = async (userId, role, targetDifficulty, excludedQuestionTexts, excludedTopics) => {
-  try {
-    // Basic query matching role and difficulty, excluding already asked question texts
-    let query = {
-      role: role,
-      difficulty: targetDifficulty,
-      questionText: { $nin: excludedQuestionTexts }
+    return {
+      questionTexts: [...new Set(pastQuestionTexts)],
+      topics: [...new Set(pastTopics)],
+      seenKeys: [...new Set(seenKeys)],
     };
-
-    if (excludedTopics && excludedTopics.length > 0) {
-      query.topic = { $nin: excludedTopics };
-    }
-
-    // Try finding matching question with topic exclusion
-    let nextQuestion = await QuestionBank.findOne(query);
-
-    // Fallback 1: If no question matching the topic constraint is found, loosen topic constraint
-    if (!nextQuestion && excludedTopics && excludedTopics.length > 0) {
-      delete query.topic;
-      nextQuestion = await QuestionBank.findOne(query);
-    }
-
-    // Fallback 2: If still no question is found, loosen difficulty constraint (try any difficulty for this role)
-    if (!nextQuestion) {
-      nextQuestion = await QuestionBank.findOne({
-        role: role,
-        questionText: { $nin: excludedQuestionTexts }
-      });
-    }
-
-    return nextQuestion;
   } catch (err) {
-    console.error('Error in selectNextQuestion:', err.message);
-    return null;
+    console.error('Error in getUserPastQuestionHistory:', err.message);
+    return {
+      questionTexts: [],
+      topics: [],
+      seenKeys: [],
+    };
   }
 };
 
@@ -218,6 +205,55 @@ const parseFeedbackAndScore = (text) => {
   return { feedback, score };
 };
 
+// Build retrieved context block for RAG feedback. Caller (interviews.js) uses this to decide CodingProblemDetails-first branching and to avoid unnecessary embedding calls.
+async function buildRetrievedBlock(question) {
+  if (process.env.RAG_FEEDBACK_ENABLED !== 'true') return '';
+  try {
+    // Robust detection: prefer explicit questionId; if missing, try normalizedTitle lookup to find a matching questionId
+    let cp = null;
+    if (question?.questionId) {
+      cp = await CodingProblemDetails.findOne({ questionId: String(question.questionId) }).lean();
+    }
+
+    if (!cp && question?.normalizedTitle) {
+      // Try to find a QuestionBank doc by normalizedTitle to get a stable questionId, then look up CodingProblemDetails
+      const qb = await QuestionBank.findOne({ normalizedTitle: question.normalizedTitle }).select('questionId title').lean();
+      if (qb && qb.questionId) {
+        cp = await CodingProblemDetails.findOne({ questionId: qb.questionId }).lean();
+      }
+    }
+
+    if (!cp && question?._id) {
+      // As a last-ditch fallback, try matching by question._id (stringified) in case IDs were used inconsistently
+      cp = await CodingProblemDetails.findOne({ questionId: String(question._id) }).lean();
+    }
+
+    if (cp && (cp.referenceSolution || (cp.rubric && cp.rubric.length))) {
+      const refSol = cp.referenceSolution ? String(cp.referenceSolution).trim().slice(0, 1200) : 'N/A';
+      const rubric = Array.isArray(cp.rubric) ? cp.rubric.slice(0, 5).join('; ') : '';
+      const block = `Reference (Coding Problem):\nTitle: ${question.title || question.normalizedTitle || (cp.title || question.questionId)}\nReference Solution: ${refSol}\nRubric: ${rubric}\n\n---\n`;
+      console.log('RAG: using CodingProblemDetails for', cp.questionId || question.questionId || question.normalizedTitle);
+      return block;
+    }
+
+    // Fallback: semantic nearest neighbors
+    const topK = parseInt(process.env.RAG_FEEDBACK_TOP_K || '3', 10);
+    const emb = await embeddingsService.generateEmbedding(question.questionText);
+    const neighbors = await embeddingsService.findNearest(emb, topK);
+    if (!neighbors || neighbors.length === 0) return '';
+
+    let block = 'Reference materials (similar past questions):\n';
+    neighbors.forEach((n, i) => {
+      block += `${i + 1}) Title: ${n.title || n.normalizedTitle || 'N/A'}\nTopic: ${n.topic || 'N/A'}\nDifficulty: ${n.difficulty || 'N/A'}\nSimilarity: ${typeof n.score === 'number' ? n.score.toFixed(3) : 'N/A'}\n\n`;
+    });
+    console.log('RAG: retrieved neighbors for', question.questionId || question.normalizedTitle, neighbors.map((n) => ({ id: n.id, score: n.score })));
+    return block;
+  } catch (err) {
+    console.error('RAG retrieval error:', err.message || err);
+    return '';
+  }
+}
+
 const buildSpokenAnswerPrompt = (questionText) =>
   `You are an expert interviewer. Listen to the candidate's spoken answer in the attached audio.
 
@@ -241,7 +277,20 @@ const evaluateTextAnswer = async (question, answerText) => {
   question.answerText = answerText;
   question.audioAnswer = null;
 
-  const prompt = `You are an expert interviewer. Please evaluate this answer and provide feedback and a score out of 10. Focus on clarity, technical accuracy, and communication skills.\n\nQuestion: ${question.questionText}\nAnswer: ${answerText}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response EXACTLY as follows:\nFeedback: [your feedback]\nScore: [score out of 10]\nAreas for Improvement: [specific areas to improve]`;
+  // Build retrieved context block (CodingProblemDetails-first, then semantic fallback)
+  let retrievedBlock = '';
+  if (process.env.RAG_FEEDBACK_ENABLED === 'true') {
+    try {
+      retrievedBlock = await buildRetrievedBlock(question);
+    } catch (err) {
+      console.error('RAG buildRetrievedBlock error:', err.message || err);
+      retrievedBlock = '';
+    }
+  }
+
+  const basePrompt = `You are an expert interviewer. Please evaluate this answer and provide feedback and a score out of 10. Focus on clarity, technical accuracy, and communication skills.\n\nQuestion: ${question.questionText}\nAnswer: ${answerText}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response EXACTLY as follows:\nFeedback: [your feedback]\nScore: [score out of 10]\nAreas for Improvement: [specific areas to improve]`;
+
+  const prompt = (retrievedBlock && retrievedBlock.length > 0) ? (`${retrievedBlock}\n\n${basePrompt}`) : basePrompt;
 
   const result = await retryGenerateContent(prompt);
   const text = result.response.text();
@@ -266,6 +315,17 @@ const evaluateSpokenMediaAnswer = async (question, mediaBase64, mimeType) => {
     ? mediaBase64.split(';base64,').pop()
     : mediaBase64;
 
+  // Build retrieved context block (CodingProblemDetails-first, then semantic fallback)
+  let retrievedBlock = '';
+  if (process.env.RAG_FEEDBACK_ENABLED === 'true') {
+    try {
+      retrievedBlock = await buildRetrievedBlock(question);
+    } catch (err) {
+      console.error('RAG buildRetrievedBlock error:', err.message || err);
+      retrievedBlock = '';
+    }
+  }
+
   const multimodalPrompt = [
     {
       inlineData: {
@@ -273,6 +333,8 @@ const evaluateSpokenMediaAnswer = async (question, mediaBase64, mimeType) => {
         mimeType,
       },
     },
+    // optional retrieved context
+    ...(retrievedBlock && retrievedBlock.length > 0 ? [retrievedBlock] : []),
     buildSpokenAnswerPrompt(question.questionText),
   ];
 
@@ -311,22 +373,23 @@ router.post(
       }
 
       // Retrieve the user's past question texts to avoid repeat questions
-      const userPastQuestions = await getUserPastQuestionTexts(req.user.id);
+      const userPastHistory = await getUserPastQuestionHistory(req.user.id);
 
       // Select first question from QuestionBank (difficulty 'easy')
-      const firstQuestionObj = await selectNextQuestion(
-        req.user.id,
+      const firstQuestionObj = await selectBestQuestion({
         role,
-        'easy',
-        userPastQuestions,
-        []
-      );
+        targetDifficulty: 'easy',
+        seenKeys: new Set([...userPastHistory.seenKeys]),
+        preferredTopics: userPastHistory.topics,
+        recentTopics: [],
+      });
 
       if (!firstQuestionObj) {
         return res.status(404).json({ error: 'No questions found in the Question Bank for this role.' });
       }
 
       const firstQuestionText = firstQuestionObj.questionText;
+      const firstQuestionId = firstQuestionObj.questionId || null;
       const topic = firstQuestionObj.topic;
       const initialFeedback = 'Welcome to your interview practice! Let\'s begin.';
 
@@ -335,6 +398,7 @@ router.post(
         role,
         programmingLanguage: programmingLanguage,
         questions: [{
+          questionId: firstQuestionId,
           questionText: firstQuestionText,
           answerText: null,
           feedback: initialFeedback,
@@ -441,7 +505,19 @@ router.post('/:interview_id/answer', auth, async (req, res) => {
 
      // Handle coding question feedback generation with retry
     if (isCodingQuestion && (question.codeAnswer || question.answerText)) { // Ensure answer exists before generating code feedback
-       const prompt = `You are an expert programmer. Please evaluate this code answer and provide feedback and a score out of 10. Focus on code quality, efficiency, and best practices.\n\nQuestion: ${question.questionText}\nProgramming Language: ${programmingLanguage}\nCode Answer: ${codeAnswer}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response EXACTLY as follows:\nFeedback: [your feedback]\nScore: [score out of 10]\nCode Feedback: [specific feedback about the code]\nCode Score: [score out of 10 for the code]`;
+       let retrievedBlockForCode = '';
+       if (process.env.RAG_FEEDBACK_ENABLED === 'true') {
+         try {
+           retrievedBlockForCode = await buildRetrievedBlock(question);
+         } catch (err) {
+           console.error('RAG buildRetrievedBlock error for code feedback:', err.message || err);
+           retrievedBlockForCode = '';
+         }
+       }
+
+       const codeBasePrompt = `You are an expert programmer. Please evaluate this code answer and provide feedback and a score out of 10. Focus on code quality, efficiency, and best practices.\n\nQuestion: ${question.questionText}\nProgramming Language: ${programmingLanguage}\nCode Answer: ${codeAnswer}\n\nPlease provide:\n1. Detailed feedback\n2. A score out of 10\n3. Areas for improvement\n\nFormat your response EXACTLY as follows:\nFeedback: [your feedback]\nScore: [score out of 10]\nCode Feedback: [specific feedback about the code]\nCode Score: [score out of 10 for the code]`;
+
+       const prompt = (retrievedBlockForCode && retrievedBlockForCode.length > 0) ? `${retrievedBlockForCode}\n\n${codeBasePrompt}` : codeBasePrompt;
 
        const result = await retryGenerateContent(prompt); // Use retry helper
        const response = await result.response;
@@ -480,22 +556,26 @@ router.post('/:interview_id/answer', auth, async (req, res) => {
       // Generate overall feedback with retry
       const overallPrompt = `You are an expert interviewer. Please provide overall feedback for this interview based on the following scores and feedback:
 
-${interview.questions.map((q, i) => `
-Question ${i + 1}: ${q.questionText}
-Score: ${isCodingQuestion ? q.codeScore : q.score}/10
-Feedback: ${isCodingQuestion ? q.codeFeedback : q.feedback}
-`).join('\n')}
+    ${interview.questions.map((q, i) => {
+      const isCoding = q.codeAnswer != null || q.codeScore != null || q.questionText.startsWith('[CODING_PROBLEM]');
+      const score = isCoding ? q.codeScore : q.score;
+      const feedback = isCoding ? q.codeFeedback : q.feedback;
 
-Overall Score: ${interview.overallScore}/10
+      return `Question ${i + 1}: ${q.questionText}
+    Score: ${score}/10
+    Feedback: ${feedback}`;
+    }).join('\n')}
 
-Please provide comprehensive feedback focusing on:
-1. Overall performance
-2. Key strengths
-3. Areas for improvement
-4. Recommendations for future interviews
+    Overall Score: ${interview.overallScore}/10
 
-Format your response as:
-Overall Feedback: [your feedback]`;
+    Please provide comprehensive feedback focusing on:
+    1. Overall performance
+    2. Key strengths
+    3. Areas for improvement
+    4. Recommendations for future interviews
+
+    Format your response as:
+    Overall Feedback: [your feedback]`;
 
       const overallResult = await retryGenerateContent(overallPrompt); // Use retry helper
       const overallResponse = await overallResult.response;
@@ -517,21 +597,22 @@ Overall Feedback: [your feedback]`;
         }
 
         // Gather excluded questions (current interview + past interviews) to prevent duplicates
-        const currentQuestionTexts = interview.questions.map(q => q.questionText);
-        const pastQuestionTexts = await getUserPastQuestionTexts(req.user.id);
-        const excludedQuestionTexts = [...new Set([...currentQuestionTexts, ...pastQuestionTexts])];
+          const currentQuestionTexts = interview.questions.map(q => q.questionText);
+          const currentTopics = interview.questions.map(q => q.topic).filter(Boolean);
+          const pastQuestionHistory = await getUserPastQuestionHistory(req.user.id);
 
-        // Gather excluded topics to ensure diversity
-        const excludedTopics = interview.questions.map(q => q.topic).filter(Boolean);
-
-        // Select the question from the QuestionBank
-        const nextQuestionObj = await selectNextQuestion(
-          req.user.id,
-          interview.role,
-          targetDifficulty,
-          excludedQuestionTexts,
-          excludedTopics
-        );
+          const nextQuestionObj = await selectBestQuestion({
+            role: interview.role,
+            targetDifficulty,
+            company: interview.company,
+            seenKeys: new Set([
+              ...pastQuestionHistory.seenKeys,
+              ...currentQuestionTexts.map((text) => text.toLowerCase().trim()),
+              ...currentTopics.map((topic) => topic.toLowerCase().trim()),
+            ]),
+            preferredTopics: currentTopics.length > 0 ? currentTopics : pastQuestionHistory.topics,
+            recentTopics: currentTopics,
+          });
 
         if (!nextQuestionObj) {
           throw new Error('No available questions found in the Question Bank matching the criteria.');
@@ -539,6 +620,7 @@ Overall Feedback: [your feedback]`;
 
         // Create and add the new question to the interview
         const newQuestion = {
+          questionId: nextQuestionObj.questionId || null,
           questionText: nextQuestionObj.questionText,
           answerText: null,
           feedback: null,
@@ -559,6 +641,7 @@ Overall Feedback: [your feedback]`;
         console.error('Error selecting next question from QuestionBank:', generateErr.message);
         // If question selection fails, add a placeholder question
         interview.questions.push({
+          questionId: null,
           questionText: 'Could not generate the next question.',
           answerText: null,
           feedback: 'Failed to select next question from Question Bank due to database unavailability. Please try again later.',

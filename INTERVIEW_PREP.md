@@ -182,9 +182,5 @@ FINAL NOTES
 
 - Files to reference in the interview while walking through code: [architecture.md](/Users/kp/Studies/Projects/AI_InterviewCoach/ai_interview_coach/architecture.md), [decisions.md](/Users/kp/Studies/Projects/AI_InterviewCoach/ai_interview_coach/decisions.md), [backend/routes/api/interviews.js](/Users/kp/Studies/Projects/AI_InterviewCoach/ai_interview_coach/backend/routes/api/interviews.js), [backend/services/embeddingsService.js](/Users/kp/Studies/Projects/AI_InterviewCoach/ai_interview_coach/backend/services/embeddingsService.js), and [backend/scripts/backfillEmbeddings.js](/Users/kp/Studies/Projects/AI_InterviewCoach/ai_interview_coach/backend/scripts/backfillEmbeddings.js).
 
-If you want, I can now:
-- Run the dry-run backfill for --limit=5 and paste the output (no API calls), or
-- Run a single live embedding API test (requires GOOGLE_AI_API_KEY), or
-- Expand any of the Q&A answers into longer talking points.
 
 Good luck on the interview—tell me which follow-up you'd like and I’ll run it.

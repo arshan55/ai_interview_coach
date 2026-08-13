@@ -609,6 +609,71 @@ export default function InterviewPage() {
     }
   }, [isCodingQuestion, interview?.programmingLanguage, currentQuestionIndex]);
 
+  const getAnswerValidationError = () => {
+    if (!currentQuestion) return 'No question is currently selected.';
+
+    if (isCodingQuestion) {
+      const languageToUse = selectedCodingLanguage || interview?.programmingLanguage?.toLowerCase() || '';
+      if (!answer.trim() || !languageToUse) {
+        return 'Please provide code and select a programming language.';
+      }
+      return null;
+    }
+
+    if (answerMode === 'video') {
+      if (!recordedAudioBlob && !recordedBlob) {
+        return 'Please record your answer first before submitting.';
+      }
+      return null;
+    }
+
+    const finalAnswer = transcribedText.trim() || answer.trim();
+    return finalAnswer ? null : 'Please provide an answer or use speech-to-text.';
+  };
+
+  const encodeBlobToBase64 = async (blob: Blob) => new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const resultStr = reader.result as string;
+      resolve(resultStr.split(',')[1]);
+    };
+    reader.onerror = () => reject(new Error('Failed to encode recording.'));
+    reader.readAsDataURL(blob);
+  });
+
+  const buildAnswerRequestBody = async () => {
+    const requestBody: any = {
+      questionIndex: currentQuestionIndex,
+      ...(speechWpm != null ? { wpm: speechWpm } : {}),
+      ...(speechFillerCount != null ? { fillerWordsCount: speechFillerCount } : {}),
+    };
+
+    if (isCodingQuestion) {
+      requestBody.codeAnswer = answer;
+      requestBody.programmingLanguage = selectedCodingLanguage || interview?.programmingLanguage?.toLowerCase() || '';
+      return requestBody;
+    }
+
+    if (answerMode === 'video' && (recordedAudioBlob || recordedBlob)) {
+      const uploadBlob = recordedAudioBlob || recordedBlob;
+      const maxBytes = recordedAudioBlob ? MAX_AUDIO_BYTES : MAX_VIDEO_BYTES;
+      if (!uploadBlob || uploadBlob.size > maxBytes) {
+        throw new Error(`Recording is too large. Please keep answers under ${MAX_RECORDING_SECONDS} seconds.`);
+      }
+
+      const base64Media = await encodeBlobToBase64(uploadBlob);
+      if (recordedAudioBlob) {
+        requestBody.audioAnswer = base64Media;
+      } else {
+        requestBody.videoAnswer = base64Media;
+      }
+      return requestBody;
+    }
+
+    requestBody.answerText = transcribedText.trim() || answer.trim();
+    return requestBody;
+  };
+
   const startTranscribing = async () => {
     try {
       if (!recognitionRef.current) {
@@ -897,31 +962,12 @@ self.onmessage = function(e) {
   };
 
   const submitAnswer = async () => {
-    if (!interview) return;
+    if (!interview || !currentQuestion) return;
 
-    const isCodingQuestion = interview.questions[currentQuestionIndex].questionText.startsWith('[CODING_PROBLEM]');
-
-    // For coding questions, only check for code and programming language
-    let languageToUse = selectedCodingLanguage || interview.programmingLanguage?.toLowerCase() || '';
-    if (isCodingQuestion) {
-      if (!answer.trim() || !languageToUse) {
-        setError('Please provide code and select a programming language.');
-        return;
-      }
-    } else {
-      if (answerMode === 'video') {
-        if (!recordedAudioBlob && !recordedBlob) {
-          setError('Please record your answer first before submitting.');
-          return;
-        }
-      } else {
-        // For non-coding questions, check for text answer or transcribed text
-        const finalAnswer = transcribedText.trim() || answer.trim();
-        if (!finalAnswer) {
-          setError('Please provide an answer or use speech-to-text.');
-          return;
-        }
-      }
+    const validationError = getAnswerValidationError();
+    if (validationError) {
+      setError(validationError);
+      return;
     }
 
     try {
@@ -930,42 +976,7 @@ self.onmessage = function(e) {
       setLoading(true);
 
       const token = localStorage.getItem('token');
-      const requestBody: any = {
-        questionIndex: currentQuestionIndex,
-        ...(speechWpm != null ? { wpm: speechWpm } : {}),
-        ...(speechFillerCount != null ? { fillerWordsCount: speechFillerCount } : {}),
-      };
-
-      if (isCodingQuestion) {
-        requestBody.codeAnswer = answer;
-        requestBody.programmingLanguage = languageToUse;
-      } else if (answerMode === 'video' && (recordedAudioBlob || recordedBlob)) {
-        const uploadBlob = recordedAudioBlob || recordedBlob;
-        const maxBytes = recordedAudioBlob ? MAX_AUDIO_BYTES : MAX_VIDEO_BYTES;
-        if (!uploadBlob || uploadBlob.size > maxBytes) {
-          setError(`Recording is too large. Please keep answers under ${MAX_RECORDING_SECONDS} seconds.`);
-          setIsGeneratingFeedback(false);
-          setLoading(false);
-          return;
-        }
-        const base64Media = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const resultStr = reader.result as string;
-            const base64 = resultStr.split(',')[1];
-            resolve(base64);
-          };
-          reader.onerror = () => reject(new Error('Failed to encode recording.'));
-          reader.readAsDataURL(uploadBlob);
-        });
-        if (recordedAudioBlob) {
-          requestBody.audioAnswer = base64Media;
-        } else {
-          requestBody.videoAnswer = base64Media;
-        }
-      } else {
-        requestBody.answerText = transcribedText.trim() || answer.trim();
-      }
+      const requestBody = await buildAnswerRequestBody();
 
       const response = await fetch(`/api/interviews/${interview._id}/answer`, {
         method: 'POST',

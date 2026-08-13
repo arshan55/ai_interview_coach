@@ -1,0 +1,205 @@
+const QuestionBank = require('../models/QuestionBank');
+
+const DIFFICULTY_ORDER = ['easy', 'medium', 'hard'];
+const ACCEPTANCE_TARGETS = {
+  easy: 0.72,
+  medium: 0.56,
+  hard: 0.38,
+};
+
+const SCORE_WEIGHTS = {
+  difficulty: 3,
+  topics: 3,
+  company: 2,
+  frequency: 1.5,
+  acceptance: 1.25,
+};
+
+const normalizeText = (value) =>
+  String(value || '')
+    .toLowerCase()
+    .replace(/https?:\/\/[^\s]+/g, ' ')
+    .replace(/[^a-z0-9]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+const splitTags = (value) => {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeText(item)).filter(Boolean);
+  }
+
+  return String(value || '')
+    .split(/,|\|/)
+    .map((item) => normalizeText(item))
+    .filter(Boolean);
+};
+
+const unique = (values) => [...new Set(values.filter(Boolean))];
+
+const questionIdentityKeys = (question) => unique([
+  normalizeText(question.questionId),
+  normalizeText(question.link),
+  normalizeText(question.normalizedTitle),
+  normalizeText(question.title),
+  normalizeText(question.questionText),
+]);
+
+const questionTopics = (question) => unique([
+  ...splitTags(question.tags),
+  ...splitTags(question.topic),
+]);
+
+const jaccardScore = (left, right) => {
+  const leftSet = new Set(left);
+  const rightSet = new Set(right);
+
+  if (!leftSet.size || !rightSet.size) {
+    return 0;
+  }
+
+  let intersection = 0;
+  leftSet.forEach((item) => {
+    if (rightSet.has(item)) intersection += 1;
+  });
+
+  const union = new Set([...leftSet, ...rightSet]).size;
+  return union ? intersection / union : 0;
+};
+
+const acceptanceTargetForDifficulty = (difficulty) => ACCEPTANCE_TARGETS[difficulty] || 0.55;
+
+const adjacentDifficultyScore = (candidateDifficulty, targetDifficulty) => {
+  const targetIndex = DIFFICULTY_ORDER.indexOf(targetDifficulty);
+  const candidateIndex = DIFFICULTY_ORDER.indexOf(candidateDifficulty);
+
+  if (targetIndex === -1 || candidateIndex === -1) {
+    return 0;
+  }
+
+  const distance = Math.abs(candidateIndex - targetIndex);
+  if (distance === 0) return 1;
+  if (distance === 1) return 0.55;
+  return 0.15;
+};
+
+const scoreQuestion = (question, context) => {
+  const topicSet = questionTopics(question);
+  const preferredTopics = unique([
+    ...splitTags(context.preferredTopics),
+    ...splitTags(context.recentTopics),
+  ]);
+  const recentTopics = unique(splitTags(context.recentTopics));
+
+  const topicOverlap = jaccardScore(topicSet, preferredTopics);
+  const recentOverlap = jaccardScore(topicSet, recentTopics);
+
+  const difficultyScore = adjacentDifficultyScore(question.difficulty, context.targetDifficulty);
+  const companyScore = context.company && normalizeText(question.company) === normalizeText(context.company) ? 1 : 0;
+  const frequencyScore = question.frequency ? Math.min(Math.log10(question.frequency + 1) / 2, 1) : 0;
+
+  const acceptanceRate = typeof question.acceptanceRate === 'number' ? question.acceptanceRate : null;
+  const acceptanceTarget = acceptanceTargetForDifficulty(context.targetDifficulty);
+  const acceptanceScore = acceptanceRate === null
+    ? 0
+    : Math.max(0, 1 - Math.abs(acceptanceRate - acceptanceTarget));
+
+  const repetitionPenalty = recentOverlap > 0.5 ? 1.5 : recentOverlap * 0.75;
+  const duplicatePenalty = questionIdentityKeys(question).some((key) => context.seenKeys.has(key)) ? 6 : 0;
+
+  const score = (
+    (difficultyScore * SCORE_WEIGHTS.difficulty) +
+    (topicOverlap * SCORE_WEIGHTS.topics) +
+    (companyScore * SCORE_WEIGHTS.company) +
+    (frequencyScore * SCORE_WEIGHTS.frequency) +
+    (acceptanceScore * SCORE_WEIGHTS.acceptance) -
+    repetitionPenalty -
+    duplicatePenalty
+  );
+
+  return {
+    score,
+    topicOverlap,
+    recentOverlap,
+    companyScore,
+    frequencyScore,
+    acceptanceScore,
+    duplicatePenalty,
+  };
+};
+
+const buildCandidateQuery = (context, loosenDifficulty = false, role = context.role) => {
+  const query = {
+    role,
+  };
+
+  if (!loosenDifficulty && context.targetDifficulty) {
+    query.difficulty = context.targetDifficulty;
+  }
+
+  if (context.company) {
+    query.company = context.company;
+  }
+
+  return query;
+};
+
+const loadAndScoreCandidates = async (context, loosenDifficulty = false) => {
+  const roleCandidates = context.role === 'software-engineer'
+    ? ['software-engineer']
+    : [context.role, 'software-engineer'];
+
+  const candidateGroups = await Promise.all(
+    roleCandidates.map((role) => QuestionBank.find(buildCandidateQuery(context, loosenDifficulty, role)).lean())
+  );
+
+  return candidateGroups
+    .flat()
+    .filter((question) => {
+      const identityKeys = questionIdentityKeys(question);
+      return !identityKeys.some((key) => context.seenKeys.has(key));
+    })
+    .map((question) => ({
+      question,
+      metrics: scoreQuestion(question, {
+        ...context,
+        targetDifficulty: loosenDifficulty ? question.difficulty : context.targetDifficulty,
+      }),
+    }))
+    .sort((left, right) => {
+      if (right.metrics.score !== left.metrics.score) {
+        return right.metrics.score - left.metrics.score;
+      }
+
+      if ((right.question.frequency || 0) !== (left.question.frequency || 0)) {
+        return (right.question.frequency || 0) - (left.question.frequency || 0);
+      }
+
+      if ((right.metrics.acceptanceScore || 0) !== (left.metrics.acceptanceScore || 0)) {
+        return (right.metrics.acceptanceScore || 0) - (left.metrics.acceptanceScore || 0);
+      }
+
+      return String(left.question.title || left.question.questionText || '').localeCompare(
+        String(right.question.title || right.question.questionText || '')
+      );
+    });
+};
+
+const selectBestQuestion = async (context) => {
+  const scored = await loadAndScoreCandidates(context, false);
+
+  if (scored.length > 0) {
+    return scored[0].question;
+  }
+
+  const fallbackScored = await loadAndScoreCandidates(context, true);
+
+  return fallbackScored.length > 0 ? fallbackScored[0].question : null;
+};
+
+module.exports = {
+  normalizeText,
+  splitTags,
+  questionIdentityKeys,
+  questionTopics,
+  selectBestQuestion,
+};

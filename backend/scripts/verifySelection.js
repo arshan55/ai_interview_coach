@@ -4,48 +4,29 @@
  */
 require('dotenv').config({ path: __dirname + '/../.env' });
 const mongoose = require('mongoose');
-const QuestionBank = require('../models/QuestionBank');
 const Interview = require('../models/Interview');
+const { selectBestQuestion, questionIdentityKeys } = require('../services/questionRetrieval');
 
-const getUserPastQuestionTexts = async (userId) => {
-  const userInterviews = await Interview.find({ user: userId }).select('questions.questionText');
+const getUserPastQuestionHistory = async (userId) => {
+  const userInterviews = await Interview.find({ user: userId }).select('questions.questionId questions.questionText questions.topic questions.title questions.link');
   const pastQuestionTexts = [];
+  const pastTopics = [];
+  const seenKeys = [];
   userInterviews.forEach(interview => {
     if (interview.questions) {
       interview.questions.forEach(q => {
+        if (q.questionId) seenKeys.push(String(q.questionId).toLowerCase().trim());
         if (q.questionText) pastQuestionTexts.push(q.questionText);
+        if (q.topic) pastTopics.push(q.topic);
+        seenKeys.push(...questionIdentityKeys(q));
       });
     }
   });
-  return [...new Set(pastQuestionTexts)];
-};
-
-const selectNextQuestion = async (role, targetDifficulty, excludedQuestionTexts, excludedTopics) => {
-  let query = {
-    role,
-    difficulty: targetDifficulty,
-    questionText: { $nin: excludedQuestionTexts }
+  return {
+    questionTexts: [...new Set(pastQuestionTexts)],
+    topics: [...new Set(pastTopics)],
+    seenKeys: [...new Set(seenKeys)],
   };
-  if (excludedTopics && excludedTopics.length > 0) {
-    query.topic = { $nin: excludedTopics };
-  }
-
-  let q = await QuestionBank.findOne(query);
-
-  // Fallback 1: loosen topic constraint
-  if (!q && excludedTopics && excludedTopics.length > 0) {
-    delete query.topic;
-    q = await QuestionBank.findOne(query);
-    if (q) console.log(`  [fallback 1] Topic constraint loosened for difficulty=${targetDifficulty}`);
-  }
-
-  // Fallback 2: loosen difficulty constraint
-  if (!q) {
-    q = await QuestionBank.findOne({ role, questionText: { $nin: excludedQuestionTexts } });
-    if (q) console.log(`  [fallback 2] Difficulty constraint loosened — picked: ${q.difficulty}`);
-  }
-
-  return q;
 };
 
 const run = async () => {
@@ -67,14 +48,19 @@ const run = async () => {
     for (let i = 0; i < 5; i++) {
       const targetDifficulty = DIFFICULTY_MAP[i];
       const currentTexts = interviewQuestions.map(q => q.questionText);
-      const userPast = await getUserPastQuestionTexts(mockUserId);
-      const excluded = [...new Set([...currentTexts, ...userPast])];
-      const excludedTopics = interviewQuestions.map(q => q.topic).filter(Boolean);
+      const pastHistory = await getUserPastQuestionHistory(mockUserId);
+      const currentTopics = interviewQuestions.map(q => q.topic).filter(Boolean);
 
-      const picked = await selectNextQuestion(role, targetDifficulty, excluded, excludedTopics);
+      const picked = await selectBestQuestion({
+        role,
+        targetDifficulty,
+        seenKeys: new Set([...pastHistory.seenKeys, ...currentTexts.map((text) => text.toLowerCase().trim())]),
+        preferredTopics: currentTopics.length > 0 ? currentTopics : pastHistory.topics,
+        recentTopics: currentTopics,
+      });
 
       if (!picked) {
-        console.log(`  Q${i + 1} [FAIL]: No question found (target: ${targetDifficulty}, excluded: ${excluded.length})`);
+        console.log(`  Q${i + 1} [FAIL]: No question found (target: ${targetDifficulty})`);
         allPassed = false;
       } else {
         console.log(`  Q${i + 1} [PASS]: "${picked.title}" | diff=${picked.difficulty} | topic=${picked.topic}`);
