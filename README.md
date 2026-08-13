@@ -4,8 +4,7 @@ A comprehensive, AI-powered interview preparation platform that helps developers
 
 **Live Demo:** [Coming Soon]  
 **GitHub:** [Repository Link]  
-**Documentation:** [Full Docs](./docs)  
-**Interview prep:** [INTERVIEW_PREP.md](./INTERVIEW_PREP.md)
+**Documentation:** [Full Docs](./docs)
 
 ## 📋 Table of Contents
 
