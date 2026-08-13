@@ -6,6 +6,10 @@ A comprehensive, AI-powered interview preparation platform that helps developers
 **GitHub:** [Repository Link]  
 **Documentation:** [Full Docs](./docs)
 
+**What's new (RAG):**
+- Lightweight RAG-for-feedback: Gemini evaluations can be grounded using CodingProblemDetails or semantically-similar past questions. This is scoped to feedback generation only and is feature-flagged via RAG_FEEDBACK_ENABLED.
+
+
 ## 📋 Table of Contents
 
 - [Project Overview](#project-overview)
