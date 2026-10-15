@@ -16,15 +16,19 @@ const embeddingsService = require('../../services/embeddingsService');
 const CodingProblemDetails = require('../../models/CodingProblemDetails');
 const QuestionBank = require('../../models/QuestionBank');
 
-// Gemini — override with GOOGLE_AI_MODEL in .env (e.g. gemini-2.5-flash, gemini-1.5-flash)
-const GEMINI_MODEL = process.env.GOOGLE_AI_MODEL || 'gemini-2.5-flash';
+// Gemini — override with GOOGLE_AI_MODEL in .env (defaults to gemini-3.8-flash)
+const rawConfiguredModel = process.env.GOOGLE_AI_MODEL;
+const GEMINI_MODEL =
+  rawConfiguredModel && !rawConfiguredModel.includes('2.5')
+    ? rawConfiguredModel
+    : 'gemini-3.8-flash';
 
-const getGeminiModel = () => {
+const getGeminiModel = (modelName = GEMINI_MODEL) => {
   if (!process.env.GOOGLE_AI_API_KEY) {
     throw new Error('GOOGLE_AI_API_KEY is not configured');
   }
   return new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY).getGenerativeModel({
-    model: GEMINI_MODEL,
+    model: modelName,
   });
 };
 
@@ -43,27 +47,48 @@ const getRetryDelayMs = (error, baseDelay) => {
   return baseDelay;
 };
 
-// Helper function for retrying AI calls (503 overload + 429 quota)
-const retryGenerateContent = async (prompt, retries = 5, delay = 2000) => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const result = await getGeminiModel().generateContent(prompt);
-      return result;
-    } catch (error) {
-      const retryable = isQuotaOrRateLimitError(error);
-      if (retryable && i < retries - 1) {
-        const waitMs = getRetryDelayMs(error, delay);
-        console.warn(
-          `Gemini ${error?.status || 'rate limit'} on ${GEMINI_MODEL}. Retrying in ${waitMs}ms... (${i + 1}/${retries})`
-        );
-        await new Promise((resolve) => setTimeout(resolve, waitMs));
-        delay *= 2;
-      } else {
-        throw error;
+// Helper function for retrying AI calls with automatic model fallback (503 overload / 429 quota / 404 deprecated)
+const retryGenerateContent = async (prompt, retries = 3, delay = 1500) => {
+  const modelsToTry = [
+    GEMINI_MODEL,
+    'gemini-3.8-flash',
+    'gemini-3.5-flash-lite',
+    'gemini-3.1-flash-lite',
+  ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
+
+  let lastError = null;
+
+  for (const modelName of modelsToTry) {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const result = await getGeminiModel(modelName).generateContent(prompt);
+        return result;
+      } catch (error) {
+        lastError = error;
+
+        // If deprecated/not found (404), break immediately to next fallback model
+        if (error?.status === 404 || String(error?.message || '').includes('404')) {
+          console.warn(`Gemini model ${modelName} returned 404. Falling back to alternative model...`);
+          break;
+        }
+
+        const retryable = isQuotaOrRateLimitError(error);
+        if (retryable && i < retries - 1) {
+          const waitMs = getRetryDelayMs(error, delay);
+          console.warn(
+            `Gemini ${error?.status || 'rate limit/busy'} on ${modelName}. Retrying in ${waitMs}ms... (${i + 1}/${retries})`
+          );
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          delay *= 1.5;
+        } else {
+          console.warn(`Gemini model ${modelName} unavailable (${error?.status || error?.message}). Trying fallback model...`);
+          break;
+        }
       }
     }
   }
-  throw new Error(`AI model remains unavailable after ${retries} retries.`);
+
+  throw lastError || new Error(`AI model remains unavailable after trying: ${modelsToTry.join(', ')}`);
 };
 
 const getDevFallbackQuestionTexts = (role) => {
@@ -438,7 +463,7 @@ router.post(
       if (isQuotaOrRateLimitError(err)) {
         return res.status(429).json({
           error:
-            'Gemini API quota exceeded for this model. Add billing at https://aistudio.google.com/apikey or set GOOGLE_AI_MODEL (e.g. gemini-2.5-flash) in backend/.env.',
+            'Gemini API quota exceeded for this model. Add billing at https://aistudio.google.com/apikey or set GOOGLE_AI_MODEL (e.g. gemini-3.8-flash, gemini-3.5-flash-lite) in backend/.env.',
           code: 'GEMINI_QUOTA_EXCEEDED',
           model: GEMINI_MODEL,
         });
