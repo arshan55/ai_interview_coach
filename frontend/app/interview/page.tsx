@@ -733,26 +733,43 @@ export default function InterviewPage() {
       // Use Pyodide for Python execution
       try {
         setConsoleOutput('⏳ Loading Python runtime (Pyodide)...');
-        const pyodideModule = await (window as any).__pyodide_loading__ || (
+
+        // Load or reuse Pyodide — clear stale/failed cache so next attempt is fresh
+        const PYODIDE_CDN = 'https://cdn.jsdelivr.net/pyodide/v0.26.3/full/';
+        if (!(window as any).__pyodide_module__) {
           (window as any).__pyodide_loading__ = (async () => {
             if (!(window as any).loadPyodide) {
               await new Promise<void>((res, rej) => {
                 const s = document.createElement('script');
-                s.src = 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/pyodide.js';
+                s.src = PYODIDE_CDN + 'pyodide.js';
                 s.onload = () => res();
-                s.onerror = () => rej(new Error('Failed to load Pyodide script'));
+                s.onerror = () => rej(new Error('Failed to fetch Pyodide script from CDN. Check your internet connection.'));
                 document.head.appendChild(s);
               });
             }
-            return await (window as any).loadPyodide({ indexURL: 'https://cdn.jsdelivr.net/pyodide/v0.24.1/full/' });
-          })()
-        );
+            const mod = await (window as any).loadPyodide({ indexURL: PYODIDE_CDN });
+            (window as any).__pyodide_module__ = mod;
+            return mod;
+          })().catch((err: any) => {
+            // Clear so the next "Run" attempt retries from scratch
+            delete (window as any).__pyodide_loading__;
+            throw err;
+          });
+        }
+
+        const pyodideModule = (window as any).__pyodide_module__ || await (window as any).__pyodide_loading__;
+
+        if (typeof pyodideModule?.runPython !== 'function') {
+          delete (window as any).__pyodide_module__;
+          delete (window as any).__pyodide_loading__;
+          throw new Error('Pyodide loaded but runPython is unavailable. Please click Run again.');
+        }
+
         setConsoleOutput('✔ Python runtime ready. Running...\n');
 
-        // Capture stdout
+        // Capture stdout/stderr
         pyodideModule.runPython(`
-import sys
-import io
+import sys, io
 sys.stdout = io.StringIO()
 sys.stderr = io.StringIO()
 `);
