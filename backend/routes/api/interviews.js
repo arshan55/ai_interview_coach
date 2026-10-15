@@ -16,12 +16,12 @@ const embeddingsService = require('../../services/embeddingsService');
 const CodingProblemDetails = require('../../models/CodingProblemDetails');
 const QuestionBank = require('../../models/QuestionBank');
 
-// Gemini — override with GOOGLE_AI_MODEL in .env (defaults to gemini-3.8-flash)
+// Gemini — override with GOOGLE_AI_MODEL in .env (defaults to gemini-3.5-flash-lite for ultra-fast evaluations)
 const rawConfiguredModel = process.env.GOOGLE_AI_MODEL;
 const GEMINI_MODEL =
   rawConfiguredModel && !rawConfiguredModel.includes('2.5')
     ? rawConfiguredModel
-    : 'gemini-3.8-flash';
+    : 'gemini-3.5-flash-lite';
 
 const getGeminiModel = (modelName = GEMINI_MODEL) => {
   if (!process.env.GOOGLE_AI_API_KEY) {
@@ -29,6 +29,10 @@ const getGeminiModel = (modelName = GEMINI_MODEL) => {
   }
   return new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY).getGenerativeModel({
     model: modelName,
+    generationConfig: {
+      maxOutputTokens: 350,
+      temperature: 0.2,
+    },
   });
 };
 
@@ -39,7 +43,7 @@ console.log(`Interviews route using Gemini model: ${GEMINI_MODEL}`);
 const isQuotaOrRateLimitError = (error) =>
   error?.status === 429 ||
   error?.status === 503 ||
-  /429|quota|rate.?limit|too many requests/i.test(String(error?.message || ''));
+  /429|quota|rate.?limit|too many requests|timed out/i.test(String(error?.message || ''));
 
 const getRetryDelayMs = (error, baseDelay) => {
   const match = String(error?.message || '').match(/retry in (\d+(?:\.\d+)?)s/i);
@@ -47,13 +51,23 @@ const getRetryDelayMs = (error, baseDelay) => {
   return baseDelay;
 };
 
-// Helper function for retrying AI calls with automatic model fallback (503 overload / 429 quota / 404 deprecated)
-const retryGenerateContent = async (prompt, retries = 3, delay = 1500) => {
+// Helper for fast per-model call with timeout (avoids 30s+ hang during Google server overload)
+const generateWithTimeout = (modelClient, prompt, timeoutMs = 8000) => {
+  return Promise.race([
+    modelClient.generateContent(prompt),
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`Model request timed out after ${timeoutMs}ms`)), timeoutMs)
+    ),
+  ]);
+};
+
+// Helper function for retrying AI calls with automatic fast model fallback
+const retryGenerateContent = async (prompt, retries = 2, delay = 800) => {
   const modelsToTry = [
     GEMINI_MODEL,
-    'gemini-3.8-flash',
     'gemini-3.5-flash-lite',
     'gemini-3.1-flash-lite',
+    'gemini-3.8-flash',
   ].filter((m, idx, arr) => m && arr.indexOf(m) === idx);
 
   let lastError = null;
@@ -61,7 +75,8 @@ const retryGenerateContent = async (prompt, retries = 3, delay = 1500) => {
   for (const modelName of modelsToTry) {
     for (let i = 0; i < retries; i++) {
       try {
-        const result = await getGeminiModel(modelName).generateContent(prompt);
+        const client = getGeminiModel(modelName);
+        const result = await generateWithTimeout(client, prompt, 8000);
         return result;
       } catch (error) {
         lastError = error;
@@ -76,12 +91,12 @@ const retryGenerateContent = async (prompt, retries = 3, delay = 1500) => {
         if (retryable && i < retries - 1) {
           const waitMs = getRetryDelayMs(error, delay);
           console.warn(
-            `Gemini ${error?.status || 'rate limit/busy'} on ${modelName}. Retrying in ${waitMs}ms... (${i + 1}/${retries})`
+            `Gemini ${error?.status || 'delay/busy'} on ${modelName}. Retrying in ${waitMs}ms... (${i + 1}/${retries})`
           );
           await new Promise((resolve) => setTimeout(resolve, waitMs));
           delay *= 1.5;
         } else {
-          console.warn(`Gemini model ${modelName} unavailable (${error?.status || error?.message}). Trying fallback model...`);
+          console.warn(`Gemini model ${modelName} unavailable/timed out. Trying next fast model...`);
           break;
         }
       }
